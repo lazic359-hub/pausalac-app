@@ -2,103 +2,44 @@
 
 import { useState, useEffect, useMemo } from "react";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
-
-// ─── Types ───────────────────────────────────────────────────────────────────
 
 interface KPOFaktura {
   id: string;
-  datum: string; // ISO date string
+  datum: string;
   iznos_rsd: number;
   klijent?: string;
 }
 
 interface SmartInsightsProps {
-  /** Callback to open the MonthlyObligations / QR modal */
   onOpenQRModal?: () => void;
 }
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const LIMIT_6M = 6_000_000;
 const WARNING_THRESHOLD = 5_000_000;
-const ACCENT = "#4ade80"; // neon-green (tailwind green-400)
+const ACCENT = "#00ffb3";
 
-const MONTHS_SR = [
-  "Jan", "Feb", "Mar", "Apr", "Maj", "Jun",
-  "Jul", "Avg", "Sep", "Okt", "Nov", "Dec",
-];
-
-const MONTHS_SR_FULL = [
-  "Januar", "Februar", "Mart", "April", "Maj", "Jun",
-  "Jul", "Avgust", "Septembar", "Oktobar", "November", "Decembar",
-];
+const MONTHS_SR = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Avg","Sep","Okt","Nov","Dec"];
+const MONTHS_SR_FULL = ["Januar","Februar","Mart","April","Maj","Jun","Jul","Avgust","Septembar","Oktobar","November","Decembar"];
 
 const TEST_PITANJA = [
-  {
-    pitanje: "Radiš isključivo za jednog klijenta?",
-    objasnjenje:
-      "Ako sav prihod dolazi od jednog klijenta, poreski organ može smatrati da si zapravo radnik, ne preduzetnik.",
-  },
-  {
-    pitanje: "Klijent ti određuje radno vreme?",
-    objasnjenje:
-      "Kontrola radnog vremena je ključni indikator radnog odnosa, što može dovesti do reklasifikacije.",
-  },
-  {
-    pitanje: "Klijent ti obezbeđuje opremu i alate?",
-    objasnjenje:
-      "Korišćenje klijentove opreme smanjuje tvoju poslovnu samostalnost.",
-  },
-  {
-    pitanje: "Nemaš sopstvenu poslovnu adresu?",
-    objasnjenje:
-      "Odsustvo poslovne adrese odvojene od klijenta može biti rizik.",
-  },
-  {
-    pitanje: "Ne možeš slobodno birati metode rada?",
-    objasnjenje:
-      "Preduzetnik sam odlučuje kako će posao izvršiti — ako ne možeš, to je rizik.",
-  },
-  {
-    pitanje: "Klijent ima pravo da raskine saradnju bez otkaznog roka?",
-    objasnjenje:
-      "Ovakve klauzule su karakteristika radnog, a ne poslovnog odnosa.",
-  },
-  {
-    pitanje: "Primaš fiksnu mesečnu naknadu bez veze sa obimom posla?",
-    objasnjenje:
-      "Fiksna plata bez projektne osnove liči na platu radnika.",
-  },
-  {
-    pitanje: "Ne možeš angažovati podizvođače bez odobrenja?",
-    objasnjenje:
-      "Pravi preduzetnik slobodno angažuje saradnike.",
-  },
-  {
-    pitanje: "Klijent ti plaća godišnji odmor ili bolovanje?",
-    objasnjenje:
-      "Ovo su prava radnika — ako ih primaš kao preduzetnik, to je ozbiljan rizik.",
-  },
+  { pitanje: "Radiš isključivo za jednog klijenta?", objasnjenje: "Ako sav prihod dolazi od jednog klijenta, poreski organ može smatrati da si zapravo radnik, ne preduzetnik." },
+  { pitanje: "Klijent ti određuje radno vreme?", objasnjenje: "Kontrola radnog vremena je ključni indikator radnog odnosa, što može dovesti do reklasifikacije." },
+  { pitanje: "Klijent ti obezbeđuje opremu i alate?", objasnjenje: "Korišćenje klijentove opreme smanjuje tvoju poslovnu samostalnost." },
+  { pitanje: "Nemaš sopstvenu poslovnu adresu?", objasnjenje: "Odsustvo poslovne adrese odvojene od klijenta može biti rizik." },
+  { pitanje: "Ne možeš slobodno birati metode rada?", objasnjenje: "Preduzetnik sam odlučuje kako će posao izvršiti — ako ne možeš, to je rizik." },
+  { pitanje: "Klijent ima pravo da raskine saradnju bez otkaznog roka?", objasnjenje: "Ovakve klauzule su karakteristika radnog, a ne poslovnog odnosa." },
+  { pitanje: "Primaš fiksnu mesečnu naknadu bez veze sa obimom posla?", objasnjenje: "Fiksna plata bez projektne osnove liči na platu radnika." },
+  { pitanje: "Ne možeš angažovati podizvođače bez odobrenja?", objasnjenje: "Pravi preduzetnik slobodno angažuje saradnike." },
+  { pitanje: "Klijent ti plaća godišnji odmor ili bolovanje?", objasnjenje: "Ovo su prava radnika — ako ih primaš kao preduzetnik, to je ozbiljan rizik." },
 ];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function daysUntilNext15(): number {
   const now = new Date();
   const next15 = new Date(now.getFullYear(), now.getMonth(), 15);
-  if (now.getDate() >= 15) {
-    next15.setMonth(next15.getMonth() + 1);
-  }
-  const diff = next15.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  if (now.getDate() >= 15) next15.setMonth(next15.getMonth() + 1);
+  return Math.ceil((next15.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 function formatBroj(n: number): string {
@@ -110,52 +51,36 @@ function loadKPO(): KPOFaktura[] {
   try {
     const raw = localStorage.getItem("kpo_knjiga");
     return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+const card: React.CSSProperties = {
+  background: "#0d1117",
+  border: "1px solid #1a2040",
+  borderRadius: 16,
+  padding: 20,
+  marginBottom: 12,
+};
 
-function SectionCard({
-  children,
-  className = "",
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-5 ${className}`}
-    >
-      {children}
-    </div>
-  );
-}
+const labelStyle: React.CSSProperties = {
+  color: "#555",
+  fontSize: 11,
+  margin: "0 0 12px 0",
+  letterSpacing: 1,
+};
 
-function Label({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="text-[10px] uppercase tracking-widest text-green-400/70 font-semibold mb-1">
-      {children}
-    </p>
-  );
-}
-
-// ─── Burn-rate Panel ─────────────────────────────────────────────────────────
+// ─── Burn Rate ────────────────────────────────────────────────────────────────
 
 function BurnRatePanel({ fakture }: { fakture: KPOFaktura[] }) {
   const { ukupno, prosecniMesecni, dostizeMonth, prekoracio } = useMemo(() => {
     const ukupno = fakture.reduce((s, f) => s + (f.iznos_rsd || 0), 0);
-
-    // Group by month
     const byMonth: Record<string, number> = {};
-    fakture.forEach((f) => {
-      const key = f.datum?.slice(0, 7); // "YYYY-MM"
+    fakture.forEach(f => {
+      const key = f.datum?.slice(0, 7);
       if (key) byMonth[key] = (byMonth[key] || 0) + (f.iznos_rsd || 0);
     });
     const months = Object.keys(byMonth).length || 1;
     const prosecniMesecni = ukupno / months;
-
     let dostizeMonth = "—";
     if (prosecniMesecni > 0) {
       const preostalo = LIMIT_6M - ukupno;
@@ -168,76 +93,51 @@ function BurnRatePanel({ fakture }: { fakture: KPOFaktura[] }) {
         dostizeMonth = "već prešen";
       }
     }
-
-    return {
-      ukupno,
-      prosecniMesecni,
-      dostizeMonth,
-      prekoracio: ukupno >= WARNING_THRESHOLD,
-    };
+    return { ukupno, prosecniMesecni, dostizeMonth, prekoracio: ukupno >= WARNING_THRESHOLD };
   }, [fakture]);
 
   const progress = Math.min((ukupno / LIMIT_6M) * 100, 100);
+  const bojaBar = prekoracio ? "#ff4d4d" : ACCENT;
 
   return (
-    <SectionCard
-      className={prekoracio ? "border-red-500/40 bg-red-950/20" : ""}
-    >
-      <Label>Burn-rate analiza</Label>
-      <div className="flex items-end justify-between mb-3">
+    <div style={{ ...card, border: prekoracio ? "1px solid #ff4d4d40" : "1px solid #1a2040", background: prekoracio ? "#1a0a0a" : "#0d1117" }}>
+      <p style={labelStyle}>🔥 BURN-RATE ANALIZA</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
         <div>
-          <p className="text-2xl font-bold text-white">
-            {formatBroj(ukupno)}{" "}
-            <span className="text-sm font-normal text-white/50">RSD</span>
+          <p style={{ fontSize: 28, fontWeight: 800, color: ACCENT, margin: "0 0 4px 0", textShadow: `0 0 20px ${ACCENT}40` }}>
+            {formatBroj(ukupno)} <span style={{ fontSize: 14, color: "#444", fontWeight: 400 }}>RSD</span>
           </p>
-          <p className="text-xs text-white/50 mt-0.5">
-            Prosek:{" "}
-            <span className="text-green-400">{formatBroj(prosecniMesecni)} RSD/mes</span>
+          <p style={{ color: "#555", fontSize: 12, margin: 0 }}>
+            Prosek: <span style={{ color: ACCENT }}>{formatBroj(prosecniMesecni)} RSD/mes</span>
           </p>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-white/40">Limit 6M</p>
-          <p className="text-lg font-semibold text-white/70">
-            {formatBroj(LIMIT_6M)}
-          </p>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ color: "#333", fontSize: 11, margin: "0 0 2px 0" }}>Limit</p>
+          <p style={{ color: "#555", fontSize: 15, fontWeight: 700, margin: 0 }}>6.000.000</p>
         </div>
       </div>
-
-      {/* Progress bar */}
-      <div className="relative h-2 rounded-full bg-white/10 overflow-hidden mb-3">
-        <div
-          className="absolute left-0 top-0 h-full rounded-full transition-all duration-700"
-          style={{
-            width: `${progress}%`,
-            background: prekoracio
-              ? "linear-gradient(90deg, #ef4444, #f87171)"
-              : `linear-gradient(90deg, #4ade80, #86efac)`,
-            boxShadow: prekoracio
-              ? "0 0 12px rgba(239,68,68,0.5)"
-              : "0 0 12px rgba(74,222,128,0.4)",
-          }}
-        />
+      <div style={{ background: "#111", borderRadius: 8, height: 8, marginBottom: 8, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${progress}%`, background: bojaBar, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar}`, transition: "width 0.5s ease" }} />
       </div>
-
-      <p
-        className={`text-xs ${prekoracio ? "text-red-400" : "text-white/60"}`}
-      >
-        {prekoracio ? (
-          <span className="font-semibold text-red-400">
-            ⚠️ Prešao si {formatBroj(WARNING_THRESHOLD)} RSD — konsultuj
-            računovođu!
-          </span>
-        ) : prosecniMesecni > 0 ? (
-          <>
-            Ako nastaviš ovim tempom, limit od 6M ćeš dostići u{" "}
-            <span className="text-green-400 font-semibold">{dostizeMonth}</span>
-            .
-          </>
-        ) : (
-          "Dodaj fakture da vidiš projekciju."
-        )}
-      </p>
-    </SectionCard>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#333", marginBottom: 10 }}>
+        <span>{progress.toFixed(1)}% od limita</span>
+        <span>6.000.000 RSD</span>
+      </div>
+      {prekoracio ? (
+        <div style={{ background: "#2a0a0a", border: "1px solid #ff4d4d40", borderRadius: 8, padding: "10px 14px" }}>
+          <p style={{ color: "#ff6b6b", fontSize: 13, margin: 0 }}>⚠️ Prešao si 5M RSD — konsultuj računovođu!</p>
+        </div>
+      ) : prosecniMesecni > 0 ? (
+        <div style={{ background: "#0a1a10", border: "1px solid #00ffb320", borderRadius: 8, padding: "10px 14px" }}>
+          <p style={{ color: "#555", fontSize: 13, margin: 0 }}>
+            Ako nastaviš ovim tempom, limit ćeš dostići u{" "}
+            <span style={{ color: ACCENT, fontWeight: 700 }}>{dostizeMonth}</span>.
+          </p>
+        </div>
+      ) : (
+        <p style={{ color: "#333", fontSize: 13, margin: 0 }}>Dodaj fakture da vidiš projekciju.</p>
+      )}
+    </div>
   );
 }
 
@@ -247,81 +147,43 @@ function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
   const days = daysUntilNext15();
   const urgent = days <= 3;
   const soon = days <= 7;
+  const boja = urgent ? "#ff4d4d" : soon ? "#ffcc00" : ACCENT;
 
   return (
-    <SectionCard
-      className={
-        urgent
-          ? "border-red-500/40 bg-red-950/20"
-          : soon
-          ? "border-yellow-500/30 bg-yellow-950/10"
-          : ""
-      }
-    >
-      <Label>Poreski podsetnik</Label>
-      <div className="flex items-center gap-4">
-        <div
-          className="flex-shrink-0 w-14 h-14 rounded-xl flex flex-col items-center justify-center"
-          style={{
-            background: urgent
-              ? "rgba(239,68,68,0.15)"
-              : soon
-              ? "rgba(234,179,8,0.15)"
-              : "rgba(74,222,128,0.1)",
-            border: `1px solid ${urgent ? "rgba(239,68,68,0.4)" : soon ? "rgba(234,179,8,0.3)" : "rgba(74,222,128,0.2)"}`,
-          }}
-        >
-          <span
-            className="text-2xl font-black leading-none"
-            style={{ color: urgent ? "#f87171" : soon ? "#fbbf24" : ACCENT }}
-          >
-            {days}
-          </span>
-          <span className="text-[9px] text-white/40 uppercase tracking-wide">
-            dana
-          </span>
+    <div style={{ ...card, border: urgent ? "1px solid #ff4d4d40" : soon ? "1px solid #ffcc0030" : "1px solid #1a2040", background: urgent ? "#1a0a0a" : soon ? "#1a1500" : "#0d1117" }}>
+      <p style={labelStyle}>⏰ PORESKI PODSETNIK</p>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+        <div style={{ flexShrink: 0, width: 60, height: 60, borderRadius: 12, background: "#111", border: `1px solid ${boja}30`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 26, fontWeight: 900, color: boja, lineHeight: 1, textShadow: `0 0 15px ${boja}60` }}>{days}</span>
+          <span style={{ fontSize: 9, color: "#444", textTransform: "uppercase", letterSpacing: 1 }}>dana</span>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white leading-snug">
-            Preostalo{" "}
-            <span
-              style={{ color: urgent ? "#f87171" : soon ? "#fbbf24" : ACCENT }}
-              className="font-semibold"
-            >
-              {days} {days === 1 ? "dan" : "dana"}
-            </span>{" "}
-            za uplatu poreza i doprinosa.
+        <div>
+          <p style={{ fontSize: 14, color: "white", margin: "0 0 4px 0" }}>
+            Preostalo <span style={{ color: boja, fontWeight: 700 }}>{days} {days === 1 ? "dan" : "dana"}</span> za uplatu poreza i doprinosa.
           </p>
-          <p className="text-xs text-white/40 mt-0.5">Rok: 15. u mesecu</p>
+          <p style={{ fontSize: 12, color: "#444", margin: 0 }}>Rok plaćanja: 15. u mesecu</p>
         </div>
       </div>
       {onOpenQRModal && (
         <button
           onClick={onOpenQRModal}
-          className="mt-3 w-full py-2 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 hover:opacity-90 active:scale-95"
-          style={{
-            background: "rgba(74,222,128,0.12)",
-            border: "1px solid rgba(74,222,128,0.3)",
-            color: ACCENT,
-          }}
+          style={{ width: "100%", background: "#0a1a10", border: "1px solid #00ffb330", borderRadius: 10, padding: "11px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
         >
           Otvori QR kodove za plaćanje →
         </button>
       )}
-    </SectionCard>
+    </div>
   );
 }
 
 // ─── Mini Chart ───────────────────────────────────────────────────────────────
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const CustomTooltip = ({ active, payload, label: l }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div className="rounded-lg bg-gray-900 border border-white/10 px-3 py-2 text-xs">
-        <p className="text-white/60 mb-1">{label}</p>
-        <p className="text-green-400 font-semibold">
-          {formatBroj(payload[0].value)} RSD
-        </p>
+      <div style={{ background: "#0d1117", border: "1px solid #1a2040", borderRadius: 8, padding: "8px 12px" }}>
+        <p style={{ color: "#555", fontSize: 11, margin: "0 0 4px 0" }}>{l}</p>
+        <p style={{ color: ACCENT, fontWeight: 700, fontSize: 13, margin: 0 }}>{formatBroj(payload[0].value)} RSD</p>
       </div>
     );
   }
@@ -332,64 +194,40 @@ function MiniChart({ fakture }: { fakture: KPOFaktura[] }) {
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth();
 
-  const data = useMemo(() => {
-    return MONTHS_SR.map((mes, i) => {
-      const iznos = fakture
-        .filter((f) => {
-          if (!f.datum) return false;
-          const d = new Date(f.datum);
-          return d.getFullYear() === currentYear && d.getMonth() === i;
-        })
-        .reduce((s, f) => s + (f.iznos_rsd || 0), 0);
-      return { mes, iznos };
-    });
-  }, [fakture, currentYear]);
+  const data = useMemo(() => MONTHS_SR.map((mes, i) => ({
+    mes,
+    iznos: fakture.filter(f => {
+      if (!f.datum) return false;
+      const d = new Date(f.datum);
+      return d.getFullYear() === currentYear && d.getMonth() === i;
+    }).reduce((s, f) => s + (f.iznos_rsd || 0), 0),
+  })), [fakture, currentYear]);
 
   return (
-    <SectionCard>
-      <Label>Prihodi {currentYear}</Label>
-      <div className="h-36 mt-2">
+    <div style={card}>
+      <p style={labelStyle}>📊 PRIHODI {currentYear}.</p>
+      <div style={{ height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} barSize={16} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-            <XAxis
-              dataKey="mes"
-              tick={{ fill: "rgba(255,255,255,0.35)", fontSize: 10 }}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              tick={{ fill: "rgba(255,255,255,0.25)", fontSize: 9 }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
-            />
-            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.04)" }} />
+          <BarChart data={data} barSize={14} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
+            <XAxis dataKey="mes" tick={{ fill: "#444", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "#333", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
             <Bar dataKey="iznos" radius={[4, 4, 0, 0]}>
               {data.map((_, i) => (
                 <Cell
                   key={i}
-                  fill={
-                    i === currentMonth
-                      ? ACCENT
-                      : i < currentMonth
-                      ? "rgba(74,222,128,0.35)"
-                      : "rgba(255,255,255,0.07)"
-                  }
-                  style={
-                    i === currentMonth
-                      ? { filter: "drop-shadow(0 0 6px rgba(74,222,128,0.6))" }
-                      : {}
-                  }
+                  fill={i === currentMonth ? ACCENT : i < currentMonth ? "#00ffb350" : "#ffffff10"}
+                  style={i === currentMonth ? { filter: "drop-shadow(0 0 6px #00ffb360)" } : {}}
                 />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="text-xs text-white/30 mt-1 text-center">
+      <p style={{ color: "#333", fontSize: 11, margin: "8px 0 0 0", textAlign: "center" }}>
         Svetlo zeleno = tekući mesec
       </p>
-    </SectionCard>
+    </div>
   );
 }
 
@@ -399,148 +237,105 @@ function TestSamostalnosti() {
   const [open, setOpen] = useState(false);
   const [odgovori, setOdgovori] = useState<Record<number, boolean | null>>({});
 
-  const daCount = Object.values(odgovori).filter((v) => v === true).length;
+  const daCount = Object.values(odgovori).filter(v => v === true).length;
   const rizican = daCount >= 3;
+  const answered = Object.keys(odgovori).length;
 
   function toggle(i: number, val: boolean) {
-    setOdgovori((prev) => ({
-      ...prev,
-      [i]: prev[i] === val ? null : val,
-    }));
+    setOdgovori(prev => ({ ...prev, [i]: prev[i] === val ? null : val }));
   }
 
   return (
-    <SectionCard>
-      <div className="flex items-center justify-between">
+    <div style={card}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
-          <Label>Test samostalnosti</Label>
-          <p className="text-sm text-white font-medium">Proveri rizik</p>
-          {Object.keys(odgovori).length > 0 && (
-            <p
-              className={`text-xs mt-0.5 font-semibold ${
-                rizican ? "text-red-400" : "text-green-400"
-              }`}
-            >
-              {rizican
-                ? `⚠️ Visok rizik (${daCount}/9 DA odgovora)`
-                : `✓ Nizak rizik (${daCount}/9 DA odgovora)`}
+          <p style={labelStyle}>⚖️ TEST SAMOSTALNOSTI</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "white", margin: "0 0 4px 0" }}>Proveri rizik</p>
+          {answered > 0 && (
+            <p style={{ fontSize: 12, color: rizican ? "#ff6b6b" : ACCENT, margin: 0, fontWeight: 700 }}>
+              {rizican ? `⚠️ Visok rizik (${daCount}/9)` : `✓ Nizak rizik (${daCount}/9)`}
             </p>
           )}
         </div>
         <button
-          onClick={() => setOpen((p) => !p)}
-          className="flex-shrink-0 px-4 py-2 rounded-xl text-xs font-semibold transition-all duration-200 hover:opacity-90 active:scale-95"
-          style={{
-            background: "rgba(74,222,128,0.12)",
-            border: "1px solid rgba(74,222,128,0.3)",
-            color: ACCENT,
-          }}
+          onClick={() => setOpen(p => !p)}
+          style={{ background: "#0a1a10", border: "1px solid #00ffb330", borderRadius: 10, padding: "10px 16px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
         >
           {open ? "Zatvori" : "Pokreni test"}
         </button>
       </div>
 
       {open && (
-        <div className="mt-4 space-y-3">
+        <div style={{ marginTop: 16 }}>
           {TEST_PITANJA.map((p, i) => (
-            <div
-              key={i}
-              className="rounded-xl p-3 border border-white/5 bg-white/3"
-              style={{ background: "rgba(255,255,255,0.03)" }}
-            >
-              <p className="text-xs text-white/90 font-medium mb-2 leading-snug">
+            <div key={i} style={{ background: "#111", border: "1px solid #1a2040", borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
+              <p style={{ fontSize: 13, color: "white", margin: "0 0 10px 0", fontWeight: 500 }}>
                 {i + 1}. {p.pitanje}
               </p>
-              <div className="flex gap-2 mb-2">
-                {(["DA", "NE"] as const).map((label) => {
-                  const val = label === "DA";
+              <div style={{ display: "flex", gap: 8, marginBottom: odgovori[i] === true ? 8 : 0 }}>
+                {(["DA", "NE"] as const).map(labelBtn => {
+                  const val = labelBtn === "DA";
                   const active = odgovori[i] === val;
                   return (
                     <button
-                      key={label}
+                      key={labelBtn}
                       onClick={() => toggle(i, val)}
-                      className="px-4 py-1 rounded-lg text-xs font-bold transition-all duration-150"
-                      style={
-                        active
-                          ? {
-                              background:
-                                val
-                                  ? "rgba(239,68,68,0.25)"
-                                  : "rgba(74,222,128,0.2)",
-                              border: `1px solid ${val ? "rgba(239,68,68,0.5)" : "rgba(74,222,128,0.4)"}`,
-                              color: val ? "#f87171" : ACCENT,
-                            }
-                          : {
-                              background: "rgba(255,255,255,0.05)",
-                              border: "1px solid rgba(255,255,255,0.1)",
-                              color: "rgba(255,255,255,0.4)",
-                            }
-                      }
+                      style={{
+                        padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
+                        background: active ? (val ? "#2a0a0a" : "#0a1a10") : "#0d1117",
+                        border: active ? `1px solid ${val ? "#ff4d4d60" : "#00ffb340"}` : "1px solid #1a2040",
+                        color: active ? (val ? "#ff6b6b" : ACCENT) : "#444",
+                      }}
                     >
-                      {label}
+                      {labelBtn}
                     </button>
                   );
                 })}
               </div>
               {odgovori[i] === true && (
-                <p className="text-[11px] text-red-300/80 leading-snug">
+                <p style={{ color: "#ff6b6b", fontSize: 12, margin: 0, lineHeight: 1.5 }}>
                   ⚠️ {p.objasnjenje}
                 </p>
               )}
             </div>
           ))}
-
-          {Object.keys(odgovori).length === 9 && (
-            <div
-              className={`rounded-xl p-4 text-center text-sm font-semibold ${
-                rizican
-                  ? "bg-red-950/40 border border-red-500/30 text-red-300"
-                  : "bg-green-950/30 border border-green-500/20 text-green-400"
-              }`}
-            >
+          {answered === 9 && (
+            <div style={{
+              borderRadius: 12, padding: "16px", textAlign: "center", fontSize: 13, fontWeight: 700,
+              background: rizican ? "#2a0a0a" : "#0a1a10",
+              border: `1px solid ${rizican ? "#ff4d4d40" : "#00ffb330"}`,
+              color: rizican ? "#ff6b6b" : ACCENT,
+            }}>
               {rizican
-                ? `⚠️ Visok rizik! ${daCount} od 9 faktora ukazuju na prikriveni radni odnos. Konsultuj pravnog savetnika.`
+                ? `⚠️ Visok rizik! ${daCount}/9 faktora ukazuju na prikriveni radni odnos. Konsultuj pravnog savetnika.`
                 : `✓ Nizak rizik. Tvoja poslovna samostalnost izgleda dobro.`}
             </div>
           )}
         </div>
       )}
-    </SectionCard>
+    </div>
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function SmartInsights({ onOpenQRModal }: SmartInsightsProps) {
   const [fakture, setFakture] = useState<KPOFaktura[]>([]);
 
-  // Load on mount + listen for storage changes (reaktivnost)
   useEffect(() => {
     const load = () => setFakture(loadKPO());
     load();
-
     window.addEventListener("storage", load);
-    // Also poll for same-tab changes (localStorage doesn't fire "storage" in same tab)
     const interval = setInterval(load, 2000);
-    return () => {
-      window.removeEventListener("storage", load);
-      clearInterval(interval);
-    };
+    return () => { window.removeEventListener("storage", load); clearInterval(interval); };
   }, []);
 
   return (
-    <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center gap-2 px-1">
-        <div
-          className="w-1.5 h-5 rounded-full"
-          style={{ background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }}
-        />
-        <h2 className="text-sm font-bold text-white tracking-wide uppercase">
-          Smart Insights
-        </h2>
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <div style={{ width: 3, height: 18, borderRadius: 2, background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }} />
+        <p style={{ color: "#555", fontSize: 11, margin: 0, letterSpacing: 1 }}>SMART INSIGHTS</p>
       </div>
-
       <BurnRatePanel fakture={fakture} />
       <TaxCountdown onOpenQRModal={onOpenQRModal} />
       <MiniChart fakture={fakture} />
