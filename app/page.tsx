@@ -1,4 +1,5 @@
 'use client'
+import SmartInsights from "@/components/SmartInsights";
 import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
 import MonthlyObligations from '../components/MonthlyObligations'
@@ -378,6 +379,7 @@ export default function Home() {
               ))}
             </div>
             <MonthlyObligations />
+            <SmartInsights onOpenQRModal={() => {}} />
           </>
         )}
 

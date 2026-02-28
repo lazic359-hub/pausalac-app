@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
-import PreuzmiPDFDugme from '../../components/PreuzmiPDFDugme'
+import dynamic from 'next/dynamic'
+const PreuzmiPDFDugme = dynamic(() => import('../../components/PreuzmiPDFDugme'), { ssr: false })
 
 type Profil = {
   nazivFirme: string
