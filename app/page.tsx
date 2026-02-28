@@ -468,8 +468,10 @@ export default function Home() {
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#0a0a0f', borderTop: '1px solid #1a1a2e', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
         {[
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
-          { key: 'dodaj', icon: '＋', label: 'Dodaj' },
           { key: 'fakture', icon: '📋', label: 'Prihodi' },
+          { key: 'dodaj', icon: '＋', label: 'Dodaj' },
+          { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/faktura' },
+          { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
           { key: 'settings', icon: '⚙️', label: 'Profil', href: '/settings' },
         ].map(item => (
           <button key={item.key} onClick={() => (item as any).href ? window.location.href = (item as any).href : setTab(item.key as any)}
