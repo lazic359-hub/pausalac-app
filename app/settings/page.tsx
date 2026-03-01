@@ -1,4 +1,5 @@
 'use client'
+import DataManagement from "@/components/DataManagement"
 import { useState, useEffect } from 'react'
 
 type Profil = {
@@ -137,6 +138,7 @@ export default function SettingsPage() {
         }}>
           {sacuvano ? '✓ Sačuvano!' : 'Sačuvaj podešavanja'}
         </button>
+        <DataManagement />
       </div>
     </div>
   )
