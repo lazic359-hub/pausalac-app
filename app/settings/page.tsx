@@ -20,6 +20,41 @@ const PRAZAN_PROFIL: Profil = {
   brojRacuna: '', godisnjLimit: '6000000'
 }
 
+const kartica: React.CSSProperties = {
+  background: '#0d1117',
+  border: '1px solid #1a2040',
+  borderRadius: 16,
+  padding: 24,
+  marginBottom: 16,
+  position: 'relative',
+  overflow: 'hidden',
+}
+
+function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {} }: {
+  value: string; onChange: (v: string) => void; placeholder?: string
+  type?: string; hasError?: boolean; style?: React.CSSProperties
+}) {
+  const [focused, setFocused] = useState(false)
+  return (
+    <input
+      type={type} placeholder={placeholder} value={value}
+      onChange={e => onChange(e.target.value)}
+      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      style={{
+        width: '100%', background: '#111',
+        border: `1px solid ${hasError ? '#ff4d4d' : focused ? '#00ffb360' : '#1a2040'}`,
+        borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14,
+        boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s',
+        boxShadow: focused ? '0 0 0 3px #00ffb315' : 'none', ...style,
+      }}
+    />
+  )
+}
+
+function Greska({ tekst }: { tekst: string }) {
+  return <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
+}
+
 export default function SettingsPage() {
   const [profil, setProfil] = useState<Profil>(PRAZAN_PROFIL)
   const [sacuvano, setSacuvano] = useState(false)
@@ -29,6 +64,10 @@ export default function SettingsPage() {
     const saved = localStorage.getItem('pausalac_profil')
     if (saved) setProfil(JSON.parse(saved))
   }, [])
+
+  const ocisti = (key: string) => setGreske(g => g.filter(x => x !== key))
+  const set = (key: keyof Profil) => (v: string) => { setProfil(p => ({ ...p, [key]: v })); ocisti(key) }
+  const ima = (key: string) => greske.includes(key)
 
   const sacuvaj = () => {
     const nova: string[] = []
@@ -46,18 +85,15 @@ export default function SettingsPage() {
     setTimeout(() => setSacuvano(false), 2000)
   }
 
-  const inp: React.CSSProperties = {
-    width: '100%', background: '#111', border: '1px solid #1a2040',
-    borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14,
-    boxSizing: 'border-box', outline: 'none'
-  }
-
   return (
     <div style={{ background: '#0a0a0f', minHeight: '100vh', color: 'white', fontFamily: 'system-ui, sans-serif' }}>
-      
-      {/* Header */}
+
       <div style={{ borderBottom: '1px solid #1a1a2e', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
-        <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: '#555', fontSize: 20, cursor: 'pointer' }}>←</button>
+        <button onClick={() => window.history.back()}
+          style={{ background: 'none', border: 'none', color: '#555', fontSize: 20, cursor: 'pointer' }}
+          onMouseEnter={e => e.currentTarget.style.color = '#00ffb3'}
+          onMouseLeave={e => e.currentTarget.style.color = '#555'}
+        >←</button>
         <span style={{ fontSize: 18 }}>⚙️</span>
         <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Podešavanja profila</span>
       </div>
@@ -65,80 +101,76 @@ export default function SettingsPage() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 120px 16px' }}>
 
         {/* Podaci o firmi */}
-        <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginBottom: 16 }}>
+        <div style={kartica}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#00ffb3', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>■ PODACI O FIRMI</p>
-          
-          <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>NAZIV FIRME</p>
-          <input style={{ ...inp, marginBottom: 4, borderColor: greske.includes('nazivFirme') ? '#ff4d4d' : '#1a2040' }} placeholder="npr. Moje Preduzeće PR"
-            value={profil.nazivFirme} onChange={e => { setProfil({ ...profil, nazivFirme: e.target.value }); setGreske(greske.filter(g => g !== 'nazivFirme')) }} />
-          {greske.includes('nazivFirme') && <p style={{ color: '#ff4d4d', fontSize: 11, margin: '0 0 12px 0' }}>⚠️ Obavezno polje</p>}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>NAZIV FIRME</p>
+          <Input value={profil.nazivFirme} onChange={set('nazivFirme')} placeholder="npr. Moje Preduzeće PR" hasError={ima('nazivFirme')} style={{ marginBottom: 4 }} />
+          {ima('nazivFirme') && <Greska tekst="Obavezno polje" />}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
             <div>
               <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>PIB</p>
-              <input style={{ ...inp, borderColor: greske.includes('pib') ? '#ff4d4d' : '#1a2040' }} placeholder="123456789"
-                value={profil.pib} onChange={e => { setProfil({ ...profil, pib: e.target.value }); setGreske(greske.filter(g => g !== 'pib')) }} />
-              {greske.includes('pib') && <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 0 0' }}>⚠️ Obavezno polje</p>}
+              <Input value={profil.pib} onChange={set('pib')} placeholder="123456789" hasError={ima('pib')} />
+              {ima('pib') && <Greska tekst="Obavezno polje" />}
             </div>
             <div>
               <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>MATIČNI BROJ</p>
-              <input style={{ ...inp, borderColor: greske.includes('maticniBroj') ? '#ff4d4d' : '#1a2040' }} placeholder="12345678"
-                value={profil.maticniBroj} onChange={e => { setProfil({ ...profil, maticniBroj: e.target.value }); setGreske(greske.filter(g => g !== 'maticniBroj')) }} />
-              {greske.includes('maticniBroj') && <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 0 0' }}>⚠️ Obavezno polje</p>}
+              <Input value={profil.maticniBroj} onChange={set('maticniBroj')} placeholder="12345678" hasError={ima('maticniBroj')} />
+              {ima('maticniBroj') && <Greska tekst="Obavezno polje" />}
             </div>
           </div>
         </div>
 
         {/* Poreski podaci */}
-        <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginBottom: 16 }}>
+        <div style={kartica}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#f59e0b', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: '#555', fontSize: 11, margin: '0 0 4px 0' }}>■ PORESKI PODACI (IZ REŠENJA)</p>
-          <p style={{ color: '#333', fontSize: 12, margin: '0 0 20px 0' }}>Unesi fiksne mesečne iznose iz svog poreskog rešenja</p>
+          <p style={{ color: '#333', fontSize: 12, margin: '0 0 20px 0' }}>Fiksni mesečni iznosi iz poreskog rešenja</p>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {[
-              { label: 'POREZ NA PRIHOD', key: 'mesecniPorez' },
-              { label: 'PIO DOPRINOS', key: 'mesecniPio' },
-              { label: 'ZDRAVSTVENO OSIGURANJE', key: 'mesecniZdravstvo' },
-              { label: 'OSIGURANJE ZA NEZAPOSLENOST', key: 'mesecniNezaposlenost' },
+              { label: 'POREZ NA PRIHOD', key: 'mesecniPorez', boja: '#f59e0b' },
+              { label: 'PIO DOPRINOS', key: 'mesecniPio', boja: '#3b82f6' },
+              { label: 'ZDRAVSTVENO OSIGURANJE', key: 'mesecniZdravstvo', boja: '#a855f7' },
+              { label: 'OSIGURANJE ZA NEZAPOSLENOST', key: 'mesecniNezaposlenost', boja: '#555' },
             ].map(field => (
               <div key={field.key}>
-                <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>{field.label}</p>
+                <p style={{ color: field.boja, fontSize: 11, margin: '0 0 6px 0', opacity: 0.7 }}>{field.label}</p>
                 <div style={{ position: 'relative' }}>
-                  <input style={{ ...inp, paddingRight: 45, borderColor: greske.includes(field.key) ? '#ff4d4d' : '#1a2040' }} placeholder="0" type="number"
-                    value={profil[field.key as keyof Profil]}
-                    onChange={e => { setProfil({ ...profil, [field.key]: e.target.value }); setGreske(greske.filter(g => g !== field.key)) }} />
-                  {greske.includes(field.key) && <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 0 0' }}>⚠️ Obavezno polje</p>}
-                  <span style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: '#444', fontSize: 12 }}>RSD</span>
+                  <Input type="number" value={profil[field.key as keyof Profil]} onChange={set(field.key as keyof Profil)} placeholder="0" hasError={ima(field.key)} style={{ paddingRight: 48 }} />
+                  <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: '#444', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>RSD</span>
                 </div>
+                {ima(field.key) && <Greska tekst="Obavezno polje" />}
               </div>
             ))}
           </div>
         </div>
 
         {/* Bankovni podaci */}
-        <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginBottom: 16 }}>
+        <div style={kartica}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#3b82f6', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>■ BANKOVNI PODACI</p>
-          
+
           <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>BROJ POSLOVNOG RAČUNA</p>
-          <input style={{ ...inp, marginBottom: 4, borderColor: greske.includes('brojRacuna') ? '#ff4d4d' : '#1a2040' }} placeholder="205-123456789012-53"
-            value={profil.brojRacuna} onChange={e => { setProfil({ ...profil, brojRacuna: e.target.value }); setGreske(greske.filter(g => g !== 'brojRacuna')) }} />
-          {greske.includes('brojRacuna') && <p style={{ color: '#ff4d4d', fontSize: 11, margin: '0 0 6px 0' }}>⚠️ Obavezno polje</p>}
-          <p style={{ color: '#333', fontSize: 11, margin: 0 }}>Format: XXX-XXXXXXXXXXXXX-XX</p>
+          <Input value={profil.brojRacuna} onChange={set('brojRacuna')} placeholder="205-123456789012-53" hasError={ima('brojRacuna')} style={{ marginBottom: 4 }} />
+          {ima('brojRacuna') && <Greska tekst="Obavezno polje" />}
+          <p style={{ color: '#333', fontSize: 11, margin: '6px 0 0 0' }}>Format: XXX-XXXXXXXXXXXXX-XX</p>
         </div>
+
+        <DataManagement />
 
       </div>
 
-      {/* Dugme za čuvanje */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, padding: '16px 20px', background: '#0a0a0f', borderTop: '1px solid #1a1a2e' }}>
-        <button onClick={sacuvaj} style={{
-          width: '100%', maxWidth: 680, display: 'block', margin: '0 auto',
-          background: sacuvano ? '#00cc8f' : '#00ffb3', color: '#000',
-          fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12,
-          border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340'
-        }}>
+        <button onClick={sacuvaj}
+          style={{ width: '100%', maxWidth: 680, display: 'block', margin: '0 auto', background: sacuvano ? '#00cc8f' : '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340', transition: 'box-shadow 0.2s' }}
+          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 40px #00ffb370'}
+          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 0 20px #00ffb340'}
+        >
           {sacuvano ? '✓ Sačuvano!' : 'Sačuvaj podešavanja'}
         </button>
-        <DataManagement />
       </div>
     </div>
   )
