@@ -3,6 +3,7 @@ import SmartInsights from "@/components/SmartInsights";
 import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
 import MonthlyObligations from '../components/MonthlyObligations'
+import PoresniKalendar from "@/components/PoresniKalendar";
 
 const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
@@ -378,6 +379,7 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT} />
             <MonthlyObligations />
             <SmartInsights onOpenQRModal={() => {}} />
           </>
