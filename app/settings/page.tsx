@@ -3,31 +3,22 @@ import DataManagement from "@/components/DataManagement"
 import { useState, useEffect } from 'react'
 
 type Profil = {
-  nazivFirme: string
-  pib: string
-  maticniBroj: string
-  mesecniPorez: string
-  mesecniPio: string
-  mesecniZdravstvo: string
-  mesecniNezaposlenost: string
-  brojRacuna: string
-  godisnjLimit: string
+  nazivFirme: string; pib: string; maticniBroj: string
+  mesecniPorez: string; mesecniPio: string; mesecniZdravstvo: string
+  mesecniNezaposlenost: string; brojRacuna: string; godisnjLimit: string
+  iban: string; swift: string
 }
 
 const PRAZAN_PROFIL: Profil = {
   nazivFirme: '', pib: '', maticniBroj: '',
   mesecniPorez: '', mesecniPio: '', mesecniZdravstvo: '', mesecniNezaposlenost: '',
-  brojRacuna: '', godisnjLimit: '6000000'
+  brojRacuna: '', godisnjLimit: '6000000', iban: '', swift: ''
 }
 
 const kartica: React.CSSProperties = {
-  background: '#0d1117',
-  border: '1px solid #1a2040',
-  borderRadius: 16,
-  padding: 24,
-  marginBottom: 16,
-  position: 'relative',
-  overflow: 'hidden',
+  background: '#0d1117', border: '1px solid #1a2040',
+  borderRadius: 16, padding: 24, marginBottom: 16,
+  position: 'relative', overflow: 'hidden',
 }
 
 function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {} }: {
@@ -36,8 +27,7 @@ function Input({ value, onChange, placeholder, type = 'text', hasError = false, 
 }) {
   const [focused, setFocused] = useState(false)
   return (
-    <input
-      type={type} placeholder={placeholder} value={value}
+    <input type={type} placeholder={placeholder} value={value}
       onChange={e => onChange(e.target.value)}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       style={{
@@ -62,7 +52,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const saved = localStorage.getItem('pausalac_profil')
-    if (saved) setProfil(JSON.parse(saved))
+    if (saved) setProfil({ ...PRAZAN_PROFIL, ...JSON.parse(saved) })
   }, [])
 
   const ocisti = (key: string) => setGreske(g => g.filter(x => x !== key))
@@ -137,7 +127,7 @@ export default function SettingsPage() {
               { label: 'OSIGURANJE ZA NEZAPOSLENOST', key: 'mesecniNezaposlenost', boja: '#555' },
             ].map(field => (
               <div key={field.key}>
-                <p style={{ color: field.boja, fontSize: 11, margin: '0 0 6px 0', opacity: 0.7 }}>{field.label}</p>
+                <p style={{ color: field.boja, fontSize: 11, margin: '0 0 6px 0', opacity: 0.8 }}>{field.label}</p>
                 <div style={{ position: 'relative' }}>
                   <Input type="number" value={profil[field.key as keyof Profil]} onChange={set(field.key as keyof Profil)} placeholder="0" hasError={ima(field.key)} style={{ paddingRight: 48 }} />
                   <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: '#444', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>RSD</span>
@@ -153,10 +143,40 @@ export default function SettingsPage() {
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#3b82f6', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>■ BANKOVNI PODACI</p>
 
-          <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>BROJ POSLOVNOG RAČUNA</p>
+          <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>BROJ POSLOVNOG RAČUNA (DOMAĆI)</p>
           <Input value={profil.brojRacuna} onChange={set('brojRacuna')} placeholder="205-123456789012-53" hasError={ima('brojRacuna')} style={{ marginBottom: 4 }} />
           {ima('brojRacuna') && <Greska tekst="Obavezno polje" />}
-          <p style={{ color: '#333', fontSize: 11, margin: '6px 0 0 0' }}>Format: XXX-XXXXXXXXXXXXX-XX</p>
+          <p style={{ color: '#333', fontSize: 11, margin: '4px 0 0 0' }}>Format: XXX-XXXXXXXXXXXXX-XX</p>
+        </div>
+
+        {/* Devizni podaci */}
+        <div style={kartica}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#6677ff', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
+          <p style={{ color: '#555', fontSize: 11, margin: '0 0 4px 0' }}>🌍 DEVIZNO PLAĆANJE (OPCIONO)</p>
+          <p style={{ color: '#333', fontSize: 12, margin: '0 0 20px 0' }}>
+            Prikazuje se na PDF fakturama u EUR i USD
+          </p>
+
+          <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>IBAN</p>
+          <Input
+            value={profil.iban || ''}
+            onChange={set('iban')}
+            placeholder="RS35 1234 0000 0123 4567 89"
+            style={{ marginBottom: 14 }}
+          />
+
+          <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>SWIFT / BIC KOD</p>
+          <Input
+            value={profil.swift || ''}
+            onChange={set('swift')}
+            placeholder="npr. AABASRB"
+          />
+
+          <div style={{ marginTop: 12, background: '#6677ff10', border: '1px solid #6677ff20', borderRadius: 8, padding: '10px 14px' }}>
+            <p style={{ color: '#3a3a7a', fontSize: 11, margin: 0, lineHeight: 1.6 }}>
+              💡 IBAN i SWIFT dobijaš od svoje banke. Potrebni su stranim klijentima da bi izvršili devizno plaćanje.
+            </p>
+          </div>
         </div>
 
         <DataManagement />
