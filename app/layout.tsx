@@ -31,19 +31,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body style={{ margin: 0, padding: 0, background: '#0a0a0f', overflowX: 'hidden' }}>{children}</body>
-```
-
-Dakle sa **Ctrl+H**:
-
-**Find:**
-```
       <body>{children}</body>
-```
-
-**Replace:**
-```
-      <body style={{ margin: 0, padding: 0, background: '#0a0a0f', overflowX: 'hidden' }}>{children}</body>
     </html>
-  )
-}
+    )
+  }
