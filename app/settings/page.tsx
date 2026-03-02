@@ -1,6 +1,7 @@
 'use client'
 import DataManagement from "@/components/DataManagement"
 import { useState, useEffect } from 'react'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 type Profil = {
   nazivFirme: string; pib: string; maticniBroj: string
@@ -86,6 +87,9 @@ export default function SettingsPage() {
         >←</button>
         <span style={{ fontSize: 18 }}>⚙️</span>
         <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Podešavanja profila</span>
+        <div style={{ marginLeft: 'auto' }}>
+          <ThemeToggle />
+        </div>
       </div>
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 120px 16px' }}>

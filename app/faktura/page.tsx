@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
+import { ThemeToggle } from '@/components/ThemeToggle'
 const PreuzmiPDFDugme = dynamic(() => import('../../components/PreuzmiPDFDugme'), { ssr: false })
 
 type Valuta = 'RSD' | 'EUR' | 'USD'
@@ -142,11 +143,14 @@ export default function FakturaPage() {
         >←</button>
         <span style={{ fontSize: 18 }}>🧾</span>
         <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Nova faktura</span>
-        {inostranstvo && (
-          <span style={{ marginLeft: 'auto', background: valutaBoja + '15', border: `1px solid ${valutaBoja}40`, color: valutaBoja, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
-            🌍 Devizna faktura
-          </span>
-        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {inostranstvo && (
+            <span style={{ background: valutaBoja + '15', border: `1px solid ${valutaBoja}40`, color: valutaBoja, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
+              🌍 Devizna faktura
+            </span>
+          )}
+          <ThemeToggle />
+        </div>
       </div>
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 140px 16px' }}>

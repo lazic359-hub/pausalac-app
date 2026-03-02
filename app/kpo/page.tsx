@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { ThemeToggle } from '@/components/ThemeToggle'
 
 type KpoUnos = {
   datum: string
@@ -96,12 +97,15 @@ export default function KpoPage() {
           <span style={{ fontSize: 18 }}>📒</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Arhiva i KPO</span>
         </div>
-        <button
-          onClick={() => alert('Funkcija u pripremi — uskoro možeš preuzeti KPO kao Excel ili PDF!')}
-          style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-        >
-          ⬇️ Preuzmi KPO
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <ThemeToggle />
+          <button
+            onClick={() => alert('Funkcija u pripremi — uskoro možeš preuzeti KPO kao Excel ili PDF!')}
+            style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            ⬇️ Preuzmi KPO
+          </button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 40px 16px' }}>
