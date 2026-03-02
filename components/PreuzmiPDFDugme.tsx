@@ -16,11 +16,13 @@ type Props = {
   klijent: { naziv: string; pib?: string; adresa: string }
   stavke: Stavka[]
   napomena?: string
+  valuta?: string
+  kurs?: number
   style?: React.CSSProperties
   label?: string
 }
 
-export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent, stavke, napomena, style, label }: Props) {
+export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent, stavke, napomena, valuta, kurs, style, label }: Props) {
   const dokument = (
     <FakturaPDF
       brojFakture={brojFakture}
@@ -29,6 +31,8 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent
       klijent={klijent}
       stavke={stavke}
       napomena={napomena}
+      valuta={valuta}
+      kurs={kurs}
     />
   )
 
