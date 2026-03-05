@@ -62,6 +62,8 @@ const s = StyleSheet.create({
   napomenaText: { fontSize: 9, color: '#555' },
   disclaimerBox: { backgroundColor: '#fffbf0', borderRadius: 6, padding: '8 12', marginBottom: 16, borderWidth: 1, borderColor: '#ffe8a0' },
   disclaimerText: { fontSize: 8, color: '#998844' },
+  legalBox: { borderTopWidth: 1, borderTopColor: '#e8e8f0', marginTop: 16, paddingTop: 12 },
+  legalText: { fontSize: 8, color: '#888', lineHeight: 1.5 },
 })
 
 type Stavka = { opis: string; iznos: string }
@@ -79,6 +81,7 @@ type Props = {
   napomena?: string
   valuta?: string
   kurs?: number
+  legalNotes?: string
 }
 
 function formatBrojRSD(n: number) {
@@ -95,7 +98,7 @@ function formatDatum(d: string) {
   return `${dan}.${mes}.${god}.`
 }
 
-export default function FakturaPDF({ brojFakture, datum, datumValute, izdavalac, klijent, stavke = [], napomena, valuta = 'RSD', kurs = 1 }: Props) {
+export default function FakturaPDF({ brojFakture, datum, datumValute, izdavalac, klijent, stavke = [], napomena, valuta = 'RSD', kurs = 1, legalNotes }: Props) {
   const inostranstvo = valuta !== 'RSD'
   const ukupnoValuta = (stavke || []).reduce((sum, st) => sum + (parseFloat(st.iznos) || 0), 0)
   const ukupnoRSD = inostranstvo ? Math.round(ukupnoValuta * kurs) : ukupnoValuta
@@ -272,6 +275,12 @@ export default function FakturaPDF({ brojFakture, datum, datumValute, izdavalac,
           <View style={s.napomenaBox}>
             <Text style={s.napomenaTitle}>Napomena / Note</Text>
             <Text style={s.napomenaText}>{napomena}</Text>
+          </View>
+        ) : null}
+
+        {legalNotes ? (
+          <View style={s.legalBox}>
+            <Text style={s.legalText}>{legalNotes}</Text>
           </View>
         ) : null}
 

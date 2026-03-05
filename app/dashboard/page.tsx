@@ -1,5 +1,6 @@
 'use client'
 import SmartInsights from "@/components/SmartInsights";
+import { getEurToRsdRate } from '@/lib/exchange-rate'
 import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
 import MonthlyObligations from '../../components/MonthlyObligations'
@@ -37,6 +38,13 @@ function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
+  const [ekran, setEkran] = useState<'login' | 'zaboravio' | 'novaLozinka'>('login')
+  const [resetEmail, setResetEmail] = useState('')
+  const [novaLozinka, setNovaLozinka] = useState('')
+  const [potvrda, setPotvrda] = useState('')
+  const [showPass, setShowPass] = useState(false)
+  const [showNova, setShowNova] = useState(false)
+  const [showPotvrda, setShowPotvrda] = useState(false)
 
   const handleSubmit = async () => {
     if (!email || !password) return
@@ -52,7 +60,31 @@ function LoginPage() {
     setLoading(false)
   }
 
+  const handleResetEmail = async () => {
+    if (!resetEmail) return
+    setLoading(true); setError(''); setInfo('')
+    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+      redirectTo: window.location.origin + '?reset=true',
+    })
+    if (error) setError(error.message)
+    else setInfo('Link za reset lozinke je poslat na tvoj email!')
+    setLoading(false)
+  }
+
+  const handleNovaLozinka = async () => {
+    if (!novaLozinka || !potvrda) return
+    if (novaLozinka !== potvrda) { setError('Lozinke se ne poklapaju!'); return }
+    if (novaLozinka.length < 6) { setError('Lozinka mora imati najmanje 6 karaktera'); return }
+    setLoading(true); setError(''); setInfo('')
+    const { error } = await supabase.auth.updateUser({ password: novaLozinka })
+    if (error) setError(error.message)
+    else { setInfo('Lozinka uspešno promenjena! Možeš se prijaviti.'); setEkran('login') }
+    setLoading(false)
+  }
+
   const inp: React.CSSProperties = { width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }
+  const passWrap: React.CSSProperties = { position: 'relative', marginBottom: 12 }
+  const eyeBtn: React.CSSProperties = { position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }
 
   return (
     <div style={{ background: '#0a0a0f', minHeight: '100vh', color: 'white', fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -62,19 +94,93 @@ function LoginPage() {
           <p style={{ fontSize: 24, fontWeight: 800, color: '#00ffb3', margin: '8px 0 4px 0' }}>Paušalac</p>
           <p style={{ color: '#444', fontSize: 14 }}>Evidencija prihoda za paušalce</p>
         </div>
-        <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
-          <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>{isRegister ? 'REGISTRACIJA' : 'PRIJAVA'}</p>
-          <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inp} />
-          <input type="password" placeholder="Lozinka" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSubmit()} style={inp} />
-          {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
-          {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
-          <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 12, opacity: loading ? 0.7 : 1 }}>
-            {loading ? 'Učitavanje...' : isRegister ? 'Registruj se' : 'Prijavi se'}
-          </button>
-          <button onClick={() => { setIsRegister(!isRegister); setError(''); setInfo('') }} style={{ width: '100%', background: 'none', border: '1px solid #1a2040', color: '#555', fontSize: 14, padding: '12px', borderRadius: 10, cursor: 'pointer' }}>
-            {isRegister ? 'Već imaš nalog? Prijavi se' : 'Nemaš nalog? Registruj se'}
-          </button>
-        </div>
+
+        {ekran === 'login' && (
+          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
+            <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>{isRegister ? 'REGISTRACIJA' : 'PRIJAVA'}</p>
+            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inp} />
+            <div style={passWrap}>
+              <input
+                type={showPass ? 'text' : 'password'}
+                placeholder="Lozinka"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                style={{ ...inp, marginBottom: 0, paddingRight: 44 }}
+              />
+              <button style={eyeBtn} onClick={() => setShowPass(!showPass)}>
+                {showPass ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                )}
+              </button>
+            </div>
+            {!isRegister && (
+              <div style={{ textAlign: 'right', marginBottom: 12 }}>
+                <button onClick={() => { setEkran('zaboravio'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: '#00ffb3', fontSize: 13, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                  Zaboravio sam lozinku
+                </button>
+              </div>
+            )}
+            {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
+            {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
+            <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 12, opacity: loading ? 0.7 : 1 }}>
+              {loading ? 'Učitavanje...' : isRegister ? 'Registruj se' : 'Prijavi se'}
+            </button>
+            <button onClick={() => { setIsRegister(!isRegister); setError(''); setInfo('') }} style={{ width: '100%', background: 'none', border: '1px solid #1a2040', color: '#555', fontSize: 14, padding: '12px', borderRadius: 10, cursor: 'pointer' }}>
+              {isRegister ? 'Već imaš nalog? Prijavi se' : 'Nemaš nalog? Registruj se'}
+            </button>
+          </div>
+        )}
+
+        {ekran === 'zaboravio' && (
+          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
+            <button onClick={() => { setEkran('login'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: '#555', fontSize: 13, cursor: 'pointer', padding: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+              ← Nazad na prijavu
+            </button>
+            <p style={{ color: '#555', fontSize: 11, margin: '0 0 8px 0' }}>RESET LOZINKE</p>
+            <p style={{ color: '#888', fontSize: 13, margin: '0 0 20px 0' }}>Unesite vaš email i poslaćemo vam link za reset lozinke.</p>
+            <input type="email" placeholder="Vaš email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleResetEmail()} style={inp} />
+            {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
+            {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
+            <button onClick={handleResetEmail} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
+              {loading ? 'Slanje...' : 'Pošalji link za reset'}
+            </button>
+          </div>
+        )}
+
+        {ekran === 'novaLozinka' && (
+          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
+            <p style={{ color: '#555', fontSize: 11, margin: '0 0 8px 0' }}>NOVA LOZINKA</p>
+            <p style={{ color: '#888', fontSize: 13, margin: '0 0 20px 0' }}>Unesite i potvrdite vašu novu lozinku.</p>
+            <div style={passWrap}>
+              <input type={showNova ? 'text' : 'password'} placeholder="Nova lozinka" value={novaLozinka} onChange={e => setNovaLozinka(e.target.value)} style={{ ...inp, marginBottom: 0, paddingRight: 44 }} />
+              <button style={eyeBtn} onClick={() => setShowNova(!showNova)}>
+                {showNova ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                )}
+              </button>
+            </div>
+            <div style={{ ...passWrap, marginTop: 12 }}>
+              <input type={showPotvrda ? 'text' : 'password'} placeholder="Potvrdi novu lozinku" value={potvrda} onChange={e => setPotvrda(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleNovaLozinka()} style={{ ...inp, marginBottom: 0, paddingRight: 44 }} />
+              <button style={eyeBtn} onClick={() => setShowPotvrda(!showPotvrda)}>
+                {showPotvrda ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                )}
+              </button>
+            </div>
+            {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '12px 0 12px 0' }}>⚠️ {error}</p>}
+            {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '12px 0 12px 0' }}>✉️ {info}</p>}
+            <button onClick={handleNovaLozinka} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginTop: 16, opacity: loading ? 0.7 : 1 }}>
+              {loading ? 'Čuvanje...' : 'Sačuvaj novu lozinku'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -198,6 +304,8 @@ export default function Home() {
   const [fakture, setFakture] = useState<Faktura[]>([])
   const [loading, setLoading] = useState(false)
   const [forma, setForma] = useState({ klijent: '', iznos: '', valuta: 'EUR' as Valuta, datum: '', napomena: '' })
+  const [iznosRsdPrikaz, setIznosRsdPrikaz] = useState('')
+  const [kursPrikaz, setKursPrikaz] = useState('')
   const [tab, setTab] = useState<'dashboard' | 'dodaj' | 'fakture' | 'settings'>('dashboard')
   const [godina, setGodina] = useState(new Date().getFullYear().toString())
 
@@ -215,6 +323,30 @@ export default function Home() {
   useEffect(() => {
     if (user) fetchFakture()
   }, [user, godina])
+
+  useEffect(() => {
+    const fetchKurs = async () => {
+      if (!forma.datum || forma.valuta === 'RSD') {
+        setIznosRsdPrikaz('')
+        setKursPrikaz('')
+        return
+      }
+      try {
+        const kurs = await getEurToRsdRate(forma.datum)
+        setKursPrikaz(`1 ${forma.valuta} = ${kurs.toFixed(2)} RSD`)
+        if (forma.iznos) {
+          const rsd = parseFloat(forma.iznos) * kurs
+          setIznosRsdPrikaz(Math.round(rsd).toLocaleString('sr-RS') + ' RSD')
+        } else {
+          setIznosRsdPrikaz('')
+        }
+      } catch {
+        setIznosRsdPrikaz('')
+        setKursPrikaz('')
+      }
+    }
+    fetchKurs()
+  }, [forma.datum, forma.iznos, forma.valuta])
 
   const fetchFakture = async () => {
     setLoading(true)
@@ -241,7 +373,15 @@ export default function Home() {
 
   const dodajFakturu = async () => {
     if (!forma.klijent || !forma.iznos || !user) return
-    const iznos_rsd = parseFloat(forma.iznos) * KURSEVI[forma.valuta]
+    let iznos_rsd = parseFloat(forma.iznos) * KURSEVI[forma.valuta]
+    if (forma.valuta !== 'RSD' && forma.datum) {
+      try {
+        const kurs = await getEurToRsdRate(forma.datum)
+        iznos_rsd = parseFloat(forma.iznos) * kurs
+      } catch {
+        // ostaje fallback iz KURSEVI
+      }
+    }
     const novaFaktura = {
       user_id: user.id,
       klijent: forma.klijent,
@@ -270,6 +410,18 @@ export default function Home() {
 
   const godinaOptions = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString())
 
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=recovery')) {
+      // korisnik je kliknuo reset link iz emaila
+    }
+    supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // ovde ne radimo nista, LoginPage ce prikazati novaLozinka ekran
+      }
+    })
+  }, [])
+
   if (authLoading) return (
     <div style={{ background: '#0a0a0f', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <span style={{ color: '#00ffb3', fontSize: 32 }}>💼</span>
@@ -288,7 +440,6 @@ export default function Home() {
           <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Paušalac</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Izbor godine */}
           <select
             value={godina}
             onChange={e => setGodina(e.target.value)}
@@ -311,7 +462,6 @@ export default function Home() {
 
         {!loading && tab === 'dashboard' && (
           <>
-            {/* Glavni broj */}
             <div style={{ background: 'linear-gradient(135deg, #0d1117 0%, #0a0f1e 100%)', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
               <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, background: '#00ffb3', borderRadius: '50%', filter: 'blur(80px)', opacity: 0.15 }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -322,7 +472,6 @@ export default function Home() {
                   </p>
                   <p style={{ color: '#444', fontSize: 14, margin: '0 0 20px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
                 </div>
-                {/* PDF dugme */}
                 <button
                   onClick={() => generatePDF(fakture, godina, user.email || '', { ukupnoRSD, porez, pio, zdravstvo, neto, procenat })}
                   style={{ background: '#0a1a10', border: '1px solid #00ffb340', borderRadius: 10, padding: '8px 14px', color: '#00ffb3', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
@@ -346,7 +495,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
               {[
                 { label: 'NETO PRIHOD', value: neto, boja: '#a855f7', sub: 'RSD' },
@@ -363,7 +511,6 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Porez breakdown */}
             <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 20 }}>
               <p style={{ color: '#555', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE PREMA DRŽAVI</p>
               {[
@@ -409,8 +556,17 @@ export default function Home() {
               </select>
             </div>
             <input type="date" value={forma.datum} onChange={e => setForma({ ...forma, datum: e.target.value })}
-              style={{ width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }}
+              style={{ width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 4, boxSizing: 'border-box', outline: 'none' }}
             />
+            {kursPrikaz && (
+              <p style={{ color: '#444', fontSize: 11, margin: '0 0 8px 4px' }}>📈 NBS kurs: {kursPrikaz}</p>
+            )}
+            {iznosRsdPrikaz && forma.valuta !== 'RSD' && (
+              <div style={{ background: '#0a1a0f', border: '1px solid #00ffb330', borderRadius: 10, padding: '10px 16px', marginBottom: 12 }}>
+                <p style={{ color: '#555', fontSize: 11, margin: '0 0 2px 0' }}>IZNOS U RSD</p>
+                <p style={{ color: '#00ffb3', fontWeight: 700, fontSize: 18, margin: 0 }}>≈ {iznosRsdPrikaz}</p>
+              </div>
+            )}
             <input type="text" placeholder="Napomena (opciono)" value={forma.napomena} onChange={e => setForma({ ...forma, napomena: e.target.value })}
               style={{ width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 20, boxSizing: 'border-box', outline: 'none' }}
             />
@@ -461,14 +617,15 @@ export default function Home() {
           </div>
         )}
       </div>
+
       {tab === 'settings' && (
-  <div style={{ textAlign: 'center', padding: '40px 0' }}>
-    <p style={{ color: '#444', fontSize: 14, marginBottom: 16 }}>Podešavanja profila</p>
-    <a href="/settings" style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px 32px', borderRadius: 12, textDecoration: 'none' }}>
-      Otvori podešavanja →
-    </a>
-  </div>
-)}
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <p style={{ color: '#444', fontSize: 14, marginBottom: 16 }}>Podešavanja profila</p>
+          <a href="/settings" style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px 32px', borderRadius: 12, textDecoration: 'none' }}>
+            Otvori podešavanja →
+          </a>
+        </div>
+      )}
 
       {/* Bottom nav */}
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#0a0a0f', borderTop: '1px solid #1a1a2e', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>

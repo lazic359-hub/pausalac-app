@@ -91,6 +91,19 @@ export default function FakturaPage() {
   const [sacuvano, setSacuvano] = useState(false)
   const [brojFakture, setBrojFakture] = useState('')
   const [greske, setGreske] = useState<string[]>([])
+const [legalNotes, setLegalNotes] = useState<string>('domaci')
+
+const LEGAL_OPTIONS = [
+  { value: 'domaci', label: '🇷🇸 Domaći klijent' },
+  { value: 'inostrani', label: '🌍 Inostrani klijent (član 12 st. 4)' },
+  { value: 'usluge', label: '📋 Usluge (oslobođeno PDV-a)' },
+]
+
+const LEGAL_TEXTS: Record<string, string> = {
+  domaci: 'Paušalni porez plaća poreski obveznik. Nije obveznik PDV-a u skladu sa članom 33. Zakona o porezu na dodatu vrednost.',
+  inostrani: 'Nije obveznik PDV-a. Promet usluga izvršen u inostranstvu - ne podleže PDV-u u skladu sa članom 12, stav 4. Zakona o PDV-u Republike Srbije.',
+  usluge: 'Obveznik nije u sistemu PDV-a. Usluge su oslobođene PDV-a u skladu sa Zakonom o porezu na dodatu vrednost Republike Srbije.',
+}
 
   useEffect(() => {
     const saved = localStorage.getItem('pausalac_profil')
@@ -322,6 +335,30 @@ export default function FakturaPage() {
           </div>
         </div>
 
+        {/* Zakonska napomena */}
+        <div style={kartica}>
+          <p style={{ color: '#555', fontSize: 11, margin: '0 0 12px 0' }}>ZAKONSKA NAPOMENA NA PDF-u</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {LEGAL_OPTIONS.map(opt => (
+              <button key={opt.value} onClick={() => setLegalNotes(opt.value)}
+                style={{
+                  textAlign: 'left', padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                  background: legalNotes === opt.value ? '#00ffb315' : '#111',
+                  border: `1px solid ${legalNotes === opt.value ? '#00ffb360' : '#1a2040'}`,
+                  color: legalNotes === opt.value ? '#00ffb3' : '#666',
+                  fontWeight: legalNotes === opt.value ? 700 : 400, fontSize: 14,
+                  transition: 'all 0.2s',
+                }}>
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ marginTop: 12, background: '#0a1a10', border: '1px solid #00ffb320', borderRadius: 8, padding: '10px 14px' }}>
+            <p style={{ color: '#2a5a45', fontSize: 11, margin: '0 0 4px 0' }}>TEKST KOJI ĆE BITI NA PDF-u:</p>
+            <p style={{ color: '#3a8a60', fontSize: 12, margin: 0, lineHeight: 1.5 }}>{LEGAL_TEXTS[legalNotes]}</p>
+          </div>
+        </div>
+
         {/* Upozorenje za IBAN */}
         {inostranstvo && profil && !profil.iban && (
           <div style={{ background: '#1a1500', border: '1px solid #f59e0b25', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
@@ -343,6 +380,7 @@ export default function FakturaPage() {
               brojFakture={brojFakture} datum={datum} izdavalac={profil}
               klijent={{ naziv: klijentNaziv, pib: klijentPib, adresa: klijentAdresa }}
               stavke={stavke} valuta={valuta} kurs={kursNum}
+              legalNotes={LEGAL_TEXTS[legalNotes]}
               style={{ width: '100%' }}
             />
           ) : (
