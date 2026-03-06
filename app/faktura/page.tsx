@@ -12,7 +12,7 @@ type Profil = {
   iban?: string; swift?: string
 }
 type Stavka = { id: number; opis: string; iznos: string }
-type KpoUnos = { datum: string; klijent: string; iznos: number; brojFakture: string }
+type KpoUnos = { datum: string; klijent: string; iznos: number; brojFakture: string; nacinPlacanja: string }
 
 const KURSEVI: Record<Valuta, number> = { RSD: 1, EUR: 117, USD: 108 }
 
@@ -91,6 +91,7 @@ export default function FakturaPage() {
   const [sacuvano, setSacuvano] = useState(false)
   const [brojFakture, setBrojFakture] = useState('')
   const [greske, setGreske] = useState<string[]>([])
+const [nacinPlacanja, setNacinPlacanja] = useState<string>('Prenos na račun')
 const [legalNotes, setLegalNotes] = useState<string>('domaci')
 
 const LEGAL_OPTIONS = [
@@ -138,7 +139,7 @@ const LEGAL_TEXTS: Record<string, string> = {
     if (g.length > 0) return
     const novi = generisiBrojFakture()
     setBrojFakture(novi)
-    const noviUnos: KpoUnos = { datum, klijent: klijentNaziv, iznos: ukupnoRSD, brojFakture: novi }
+    const noviUnos: KpoUnos = { datum, klijent: klijentNaziv, iznos: ukupnoRSD, brojFakture: novi, nacinPlacanja }
     const existing: KpoUnos[] = JSON.parse(localStorage.getItem('kpo_knjiga') || '[]')
     localStorage.setItem('kpo_knjiga', JSON.stringify([...existing, noviUnos]))
     setSacuvano(true)
@@ -356,6 +357,26 @@ const LEGAL_TEXTS: Record<string, string> = {
           <div style={{ marginTop: 12, background: '#0a1a10', border: '1px solid #00ffb320', borderRadius: 8, padding: '10px 14px' }}>
             <p style={{ color: '#2a5a45', fontSize: 11, margin: '0 0 4px 0' }}>TEKST KOJI ĆE BITI NA PDF-u:</p>
             <p style={{ color: '#3a8a60', fontSize: 12, margin: 0, lineHeight: 1.5 }}>{LEGAL_TEXTS[legalNotes]}</p>
+          </div>
+        </div>
+
+        {/* Način plaćanja */}
+        <div style={kartica}>
+          <p style={{ color: '#555', fontSize: 11, margin: '0 0 12px 0' }}>NAČIN PLAĆANJA</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {['Prenos na račun', 'Gotovina', 'Kartica', 'PayPal', 'Stripe'].map(opt => (
+              <button key={opt} onClick={() => setNacinPlacanja(opt)}
+                style={{
+                  textAlign: 'left', padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                  background: nacinPlacanja === opt ? '#00ffb315' : '#111',
+                  border: `1px solid ${nacinPlacanja === opt ? '#00ffb360' : '#1a2040'}`,
+                  color: nacinPlacanja === opt ? '#00ffb3' : '#666',
+                  fontWeight: nacinPlacanja === opt ? 700 : 400, fontSize: 14,
+                  transition: 'all 0.2s',
+                }}>
+                {opt}
+              </button>
+            ))}
           </div>
         </div>
 

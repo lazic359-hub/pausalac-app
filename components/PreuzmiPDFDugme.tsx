@@ -1,12 +1,5 @@
 'use client'
-import dynamic from 'next/dynamic'
-
-const PDFDownloadLink = dynamic(
-  () => import('@react-pdf/renderer').then(m => m.PDFDownloadLink),
-  { ssr: false }
-)
-
-const FakturaPDF = dynamic(() => import('./FakturaPDF'), { ssr: false })
+import { useEffect, useState } from 'react'
 
 type Stavka = { opis: string; iznos: string }
 type Props = {
@@ -23,39 +16,63 @@ type Props = {
 }
 
 export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent, stavke, napomena, valuta, kurs, style, label }: Props) {
-  const dokument = (
-    <FakturaPDF
-      brojFakture={brojFakture}
-      datum={datum}
-      izdavalac={izdavalac}
-      klijent={klijent}
-      stavke={stavke}
-      napomena={napomena}
-      valuta={valuta}
-      kurs={kurs}
-    />
+  const [Komp, setKomp] = useState<any>(null)
+
+  useEffect(() => {
+    Promise.all([
+      import('@react-pdf/renderer'),
+      import('./FakturaPDF'),
+    ]).then(([renderer, fakturaMod]) => {
+      const { PDFDownloadLink } = renderer
+      const FakturaPDF = fakturaMod.default
+
+      const dokument = (
+        <FakturaPDF
+          brojFakture={brojFakture}
+          datum={datum}
+          izdavalac={izdavalac}
+          klijent={klijent}
+          stavke={stavke}
+          napomena={napomena}
+          valuta={valuta}
+          kurs={kurs}
+        />
+      )
+
+      setKomp(
+        <PDFDownloadLink
+          document={dokument}
+          fileName={`faktura-${brojFakture}.pdf`}
+          style={{
+            background: '#0d1117',
+            border: '1px solid #1a2040',
+            borderRadius: 12,
+            padding: '14px',
+            color: '#00ffb3',
+            fontSize: 14,
+            fontWeight: 700,
+            textDecoration: 'none',
+            textAlign: 'center',
+            display: 'block',
+            cursor: 'pointer',
+            ...style,
+          }}
+        >
+          {({ loading }: { loading: boolean }) => loading ? '⏳ Priprema PDF...' : (label || '📄 Preuzmi PDF')}
+        </PDFDownloadLink>
+      )
+    })
+  }, [brojFakture])
+
+  if (!Komp) return (
+    <button disabled style={{
+      width: '100%', background: '#0d1117', border: '1px solid #1a2040',
+      borderRadius: 12, padding: '14px', color: '#444',
+      fontSize: 14, fontWeight: 700, cursor: 'not-allowed',
+    }}>
+      ⏳ Priprema PDF...
+    </button>
   )
 
-  return (
-    <PDFDownloadLink
-      document={dokument}
-      fileName={`faktura-${brojFakture}.pdf`}
-      style={{
-        background: '#0d1117',
-        border: '1px solid #1a2040',
-        borderRadius: 12,
-        padding: '14px',
-        color: '#00ffb3',
-        fontSize: 14,
-        fontWeight: 700,
-        textDecoration: 'none',
-        textAlign: 'center',
-        display: 'block',
-        cursor: 'pointer',
-        ...style,
-      }}
-    >
-      {({ loading }) => loading ? '⏳ Priprema PDF...' : (label || '📄 Preuzmi PDF')}
-    </PDFDownloadLink>
-  )
+  return Komp
 }

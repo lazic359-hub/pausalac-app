@@ -7,13 +7,13 @@ type Profil = {
   nazivFirme: string; pib: string; maticniBroj: string
   mesecniPorez: string; mesecniPio: string; mesecniZdravstvo: string
   mesecniNezaposlenost: string; brojRacuna: string; godisnjLimit: string
-  iban: string; swift: string
+  iban: string; swift: string; sediste: string
 }
 
 const PRAZAN_PROFIL: Profil = {
   nazivFirme: '', pib: '', maticniBroj: '',
   mesecniPorez: '', mesecniPio: '', mesecniZdravstvo: '', mesecniNezaposlenost: '',
-  brojRacuna: '', godisnjLimit: '6000000', iban: '', swift: ''
+  brojRacuna: '', godisnjLimit: '6000000', iban: '', swift: '', sediste: ''
 }
 
 const kartica: React.CSSProperties = {
@@ -102,6 +102,9 @@ export default function SettingsPage() {
           <p style={{ color: '#666', fontSize: 11, margin: '0 0 6px 0' }}>NAZIV FIRME</p>
           <Input value={profil.nazivFirme} onChange={set('nazivFirme')} placeholder="npr. Moje Preduzeće PR" hasError={ima('nazivFirme')} style={{ marginBottom: 4 }} />
           {ima('nazivFirme') && <Greska tekst="Obavezno polje" />}
+
+          <p style={{ color: '#666', fontSize: 11, margin: '12px 0 6px 0' }}>SEDIŠTE / ADRESA FIRME</p>
+          <Input value={profil.sediste || ''} onChange={set('sediste')} placeholder="npr. Beograd, Ulica br. 1" style={{ marginBottom: 4 }} />
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
             <div>

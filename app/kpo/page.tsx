@@ -8,6 +8,7 @@ type KpoUnos = {
   klijent: string
   iznos: number
   brojFakture: string
+  nacinPlacanja?: string
 }
 
 const KVARTALI = {
@@ -95,50 +96,205 @@ export default function KpoPage() {
   const formatIznos = (iznos: number) =>
     new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos)
 
-  const preuzmiPDF = () => {
+  const preuzmiPDF = async () => {
     const doc = new jsPDF()
+    const ukupnoStrana = () => (doc as any).internal.getNumberOfPages()
+    const sada = new Date().toLocaleString('sr-RS')
 
-    doc.setFontSize(16)
+    const ascii = (t: string) => t
+      .replace(/[čć]/g, 'c').replace(/[ČĆ]/g, 'C')
+      .replace(/[š]/g, 's').replace(/[Š]/g, 'S')
+      .replace(/[ž]/g, 'z').replace(/[Ž]/g, 'Z')
+      .replace(/[đ]/g, 'dj').replace(/[Đ]/g, 'Dj')
+
+    // Učitaj podatke o firmi
+    const profilRaw = localStorage.getItem('pausalac_profil')
+    const profil = profilRaw ? JSON.parse(profilRaw) : {}
+    const nazivFirme = ascii(profil.nazivFirme || '')
+    const pib = profil.pib || ''
+    const maticniBroj = profil.maticniBroj || ''
+
+    const formatIznosPDF = (iznos: number) =>
+      new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos) + ' RSD'
+
+    // Sortiraj hronološki
+    const sortirane = [...filtrirane].sort(
+      (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
+    )
+
+    const dodajFooter = () => {
+      const ukupno = ukupnoStrana()
+      for (let i = 1; i <= ukupno; i++) {
+        doc.setPage(i)
+        doc.setFontSize(8)
+        doc.setTextColor(150, 150, 150)
+        doc.text(`Generisano: ${sada}`, 14, 290)
+        doc.text(`Stranica ${i} od ${ukupno}`, 196, 290, { align: 'right' })
+      }
+    }
+
+    // Zaglavlje firme (gornji levi ugao)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 0, 0)
-    doc.text(`KPO Knjiga — ${selectedGodina}`, 14, 20)
+    doc.text(nazivFirme, 14, 14)
 
-    doc.setFontSize(10)
+    doc.setFontSize(8)
+    doc.setFont('helvetica', 'normal')
     doc.setTextColor(100, 100, 100)
-    doc.text(`Period: ${filter !== 'sve' ? filter : 'Cela godina'}`, 14, 28)
-    doc.text(`Ukupno: ${formatIznos(ukupno)} RSD`, 14, 34)
+    if (pib) doc.text(`PIB: ${pib}`, 14, 20)
+    if (maticniBroj) doc.text(`Maticni broj: ${maticniBroj}`, 14, 25)
+
+    // Linija ispod zaglavlja firme
+    doc.setDrawColor(200, 200, 200)
+    doc.line(14, 29, 196, 29)
+
+    // Naslov dokumenta
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    doc.text(`KPO Knjiga — ${selectedGodina}`, 14, 38)
 
     doc.setFontSize(9)
-    doc.setTextColor(0, 0, 0)
-    doc.setFillColor(240, 240, 240)
-    doc.rect(14, 40, 182, 8, 'F')
-    doc.text('BR.', 16, 46)
-    doc.text('DATUM', 28, 46)
-    doc.text('KUPAC', 65, 46)
-    doc.text('BROJ FAKTURE', 130, 46)
-    doc.text('IZNOS (RSD)', 168, 46)
+    doc.setFont('helvetica', 'normal')
+    doc.setTextColor(100, 100, 100)
+    doc.text(`Period: ${filter !== 'sve' ? filter : 'Cela godina'}`, 14, 44)
+    doc.text(`Ukupno: ${formatIznosPDF(ukupno)}`, 14, 49)
 
-    let y = 54
-    filtriranesBrojevima.forEach((f) => {
-      if (y > 270) {
+    // Zaglavlje tabele
+    const tableTop = 55
+    doc.setFontSize(9)
+    doc.setTextColor(0, 0, 0)
+    doc.setFillColor(220, 220, 220)
+    doc.rect(14, tableTop, 182, 8, 'F')
+    doc.setFont('helvetica', 'bold')
+    doc.text('BR.', 16, tableTop + 5.5)
+    doc.text('DATUM', 28, tableTop + 5.5)
+    doc.text('KUPAC', 65, tableTop + 5.5)
+    doc.text('BR. FAKTURE', 112, tableTop + 5.5)
+    doc.text('PLACANJE', 150, tableTop + 5.5)
+    doc.text('IZNOS (RSD)', 175, tableTop + 5.5)
+    doc.setFont('helvetica', 'normal')
+
+    let y = tableTop + 12
+
+    sortirane.forEach((f, i) => {
+      if (y > 275) {
         doc.addPage()
-        y = 20
+        // Ponovi zaglavlje na novoj strani
+        doc.setFillColor(220, 220, 220)
+        doc.rect(14, 14, 182, 8, 'F')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.text('BR.', 16, 19.5)
+        doc.text('DATUM', 28, 19.5)
+        doc.text('KUPAC', 65, 19.5)
+        doc.text('BR. FAKTURE', 112, 19.5)
+        doc.text('PLACANJE', 150, 19.5)
+        doc.text('IZNOS (RSD)', 175, 19.5)
+        doc.setFont('helvetica', 'normal')
+        y = 28
       }
+
       doc.setTextColor(0, 0, 0)
-      doc.text(String(f.redniBroj), 16, y)
+      doc.setFontSize(9)
+      doc.text(String(i + 1), 16, y)
       doc.text(formatDatum(f.datum), 28, y)
-      doc.text(f.klijent.substring(0, 30), 65, y)
-      doc.text(f.brojFakture || '-', 130, y)
-      doc.text(f.iznos.toLocaleString(), 168, y)
+      doc.text(ascii(f.klijent).substring(0, 35), 65, y)
+      doc.text(f.brojFakture || '-', 112, y)
+      const placanje = (f.nacinPlacanja || 'Prenos').replace('Prenos na račun', 'Prenos').replace('Gotovina', 'Gotovina').replace('Kartica', 'Kartica')
+      doc.text(placanje, 150, y)
+      doc.text(formatIznosPDF(f.iznos), 196, y, { align: 'right' })
       doc.setDrawColor(220, 220, 220)
-      doc.line(14, y + 3, 196, y + 3)
-      y += 10
+      doc.line(14, y + 2.5, 196, y + 2.5)
+      y += 9
     })
 
+    // Ukupno na kraju
+    doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(0, 0, 0)
-    doc.text(`UKUPNO: ${formatIznos(ukupno)} RSD`, 140, y + 8)
+    doc.text(`UKUPNO: ${formatIznosPDF(ukupno)}`, 196, y + 8, { align: 'right' })
 
+    // Mesto, datum i potpis
+    const sediste = profil.sediste ? `U ${ascii(profil.sediste)}` : 'U ______'
+    const d = new Date()
+    const datumDanas = `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`
+    const ukupnoStr = ukupnoStrana()
+    for (let i = 1; i <= ukupnoStr; i++) {
+      doc.setPage(i)
+      if (i === ukupnoStr) {
+        doc.setFontSize(9)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(80, 80, 80)
+        doc.text(`${sediste}, dana ${datumDanas}`, 14, 272)
+        doc.setDrawColor(0, 0, 0)
+        doc.line(130, 278, 196, 278)
+        doc.setFontSize(8)
+        doc.setTextColor(120, 120, 120)
+        doc.text('Potpis odgovornog lica', 163, 283, { align: 'center' })
+      }
+    }
+
+    dodajFooter()
     doc.save(`KPO-${selectedGodina}-${filter}.pdf`)
+  }
+
+  const preuzmiExcel = async () => {
+    const XLSX = await import('xlsx-js-style')
+    const sortirane = [...filtrirane].sort(
+      (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
+    )
+
+    const formatDatumExcel = (d: string) => {
+      const [god, mes, dan] = d.split('-')
+      return `${dan}.${mes}.${god}`
+    }
+
+    const redovi = sortirane.map((f, i) => ({
+      'BR.': i + 1,
+      'DATUM': formatDatumExcel(f.datum),
+      'KUPAC': f.klijent,
+      'BROJ FAKTURE': f.brojFakture || '-',
+      'NACIN PLACANJA': f.nacinPlacanja || 'Prenos na racun',
+      'IZNOS (RSD)': f.iznos,
+    }))
+
+    // Ukupno red
+    redovi.push({
+      'BR.': '' as any,
+      'DATUM': '',
+      'KUPAC': 'UKUPNO',
+      'BROJ FAKTURE': '',
+      'NACIN PLACANJA': '',
+      'IZNOS (RSD)': filtrirane.reduce((sum, f) => sum + f.iznos, 0),
+    })
+
+    const ws = XLSX.utils.json_to_sheet(redovi)
+
+    // Boldiranje zaglavlja
+    const zaglavlje = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1']
+    zaglavlje.forEach(ref => {
+      if (ws[ref]) ws[ref].s = { font: { bold: true } }
+    })
+
+    // Širine kolona
+    ws['!cols'] = [
+      { wch: 5 },   // BR.
+      { wch: 12 },  // DATUM
+      { wch: 30 },  // KUPAC
+      { wch: 18 },  // BROJ FAKTURE
+      { wch: 20 },  // NACIN PLACANJA
+      { wch: 15 },  // IZNOS
+    ]
+
+    const wb = XLSX.utils.book_new()
+    wb.Workbook = { Views: [{ RTL: false }] }
+    XLSX.utils.book_append_sheet(wb, ws, `KPO ${selectedGodina}`)
+
+    const d = new Date()
+    const datum = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`
+    XLSX.writeFile(wb, `KPO_Knjiga_${selectedGodina}_${datum}.xlsx`, { cellStyles: true })
   }
 
   return (
@@ -154,10 +310,16 @@ export default function KpoPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <ThemeToggle />
           <button
+            onClick={preuzmiExcel}
+            style={{ background: '#1a7a4a', color: '#fff', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: '1px solid #22c55e40', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            📊 Excel
+          </button>
+          <button
             onClick={preuzmiPDF}
             style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
           >
-            ⬇️ Preuzmi KPO
+            ⬇️ PDF
           </button>
         </div>
       </div>
