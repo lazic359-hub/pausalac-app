@@ -11,11 +11,12 @@ type Props = {
   napomena?: string
   valuta?: string
   kurs?: number
+  legalNotes?: string
   style?: React.CSSProperties
   label?: string
 }
 
-export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent, stavke, napomena, valuta, kurs, style, label }: Props) {
+export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent, stavke, napomena, valuta, kurs, legalNotes, style, label }: Props) {
   const [Komp, setKomp] = useState<any>(null)
 
   useEffect(() => {
@@ -36,6 +37,7 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent
           napomena={napomena}
           valuta={valuta}
           kurs={kurs}
+          legalNotes={legalNotes}
         />
       )
 
