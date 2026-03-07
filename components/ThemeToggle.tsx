@@ -8,8 +8,14 @@ export function ThemeToggle() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => setMounted(true), [])
+
   if (!mounted) {
-    return <div className="h-9 w-9 rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-900" />
+    return (
+      <div style={{
+        width: 36, height: 36, borderRadius: 8,
+        border: '1px solid #1f1f1f', background: '#111',
+      }} />
+    )
   }
 
   const isDark = theme === 'dark'
@@ -19,15 +25,24 @@ export function ThemeToggle() {
       type="button"
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       title={isDark ? 'Svetla tema' : 'Tamna tema'}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800"
+      style={{
+        width: 36, height: 36,
+        borderRadius: 8,
+        border: `1px solid var(--border)`,
+        background: 'var(--bg-card)',
+        color: 'var(--text-primary)',
+        cursor: 'pointer',
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: 18,
+        transition: 'all 0.2s',
+        flexShrink: 0,
+      }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
     >
-      <span className="text-lg dark:hidden" aria-hidden="true">
-        🌙
-      </span>
-      <span className="hidden text-lg dark:inline" aria-hidden="true">
-        ☀️
-      </span>
-      <span className="sr-only">{isDark ? 'Prebaci na svetlu temu' : 'Prebaci na tamnu temu'}</span>
+      {isDark ? '☀️' : '🌙'}
     </button>
   )
 }
