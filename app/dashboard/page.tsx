@@ -82,22 +82,22 @@ function LoginPage() {
     setLoading(false)
   }
 
-  const inp: React.CSSProperties = { width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }
+  const inp: React.CSSProperties = { width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }
   const passWrap: React.CSSProperties = { position: 'relative', marginBottom: 12 }
-  const eyeBtn: React.CSSProperties = { position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: '#555', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }
+  const eyeBtn: React.CSSProperties = { position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }
 
   return (
-    <div style={{ background: '#0a0a0f', minHeight: '100vh', color: 'white', fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <span style={{ fontSize: 40 }}>💼</span>
           <p style={{ fontSize: 24, fontWeight: 800, color: '#00ffb3', margin: '8px 0 4px 0' }}>Paušalac</p>
-          <p style={{ color: '#444', fontSize: 14 }}>Evidencija prihoda za paušalce</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Evidencija prihoda za paušalce</p>
         </div>
 
         {ekran === 'login' && (
-          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
-            <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>{isRegister ? 'REGISTRACIJA' : 'PRIJAVA'}</p>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>{isRegister ? 'REGISTRACIJA' : 'PRIJAVA'}</p>
             <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inp} />
             <div style={passWrap}>
               <input
@@ -128,19 +128,19 @@ function LoginPage() {
             <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 12, opacity: loading ? 0.7 : 1 }}>
               {loading ? 'Učitavanje...' : isRegister ? 'Registruj se' : 'Prijavi se'}
             </button>
-            <button onClick={() => { setIsRegister(!isRegister); setError(''); setInfo('') }} style={{ width: '100%', background: 'none', border: '1px solid #1a2040', color: '#555', fontSize: 14, padding: '12px', borderRadius: 10, cursor: 'pointer' }}>
+            <button onClick={() => { setIsRegister(!isRegister); setError(''); setInfo('') }} style={{ width: '100%', background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 14, padding: '12px', borderRadius: 10, cursor: 'pointer' }}>
               {isRegister ? 'Već imaš nalog? Prijavi se' : 'Nemaš nalog? Registruj se'}
             </button>
           </div>
         )}
 
         {ekran === 'zaboravio' && (
-          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
-            <button onClick={() => { setEkran('login'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: '#555', fontSize: 13, cursor: 'pointer', padding: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
+            <button onClick={() => { setEkran('login'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', padding: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
               ← Nazad na prijavu
             </button>
-            <p style={{ color: '#555', fontSize: 11, margin: '0 0 8px 0' }}>RESET LOZINKE</p>
-            <p style={{ color: '#888', fontSize: 13, margin: '0 0 20px 0' }}>Unesite vaš email i poslaćemo vam link za reset lozinke.</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>RESET LOZINKE</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 20px 0' }}>Unesite vaš email i poslaćemo vam link za reset lozinke.</p>
             <input type="email" placeholder="Vaš email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleResetEmail()} style={inp} />
             {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
             {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
@@ -151,9 +151,9 @@ function LoginPage() {
         )}
 
         {ekran === 'novaLozinka' && (
-          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
-            <p style={{ color: '#555', fontSize: 11, margin: '0 0 8px 0' }}>NOVA LOZINKA</p>
-            <p style={{ color: '#888', fontSize: 13, margin: '0 0 20px 0' }}>Unesite i potvrdite vašu novu lozinku.</p>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>NOVA LOZINKA</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 20px 0' }}>Unesite i potvrdite vašu novu lozinku.</p>
             <div style={passWrap}>
               <input type={showNova ? 'text' : 'password'} placeholder="Nova lozinka" value={novaLozinka} onChange={e => setNovaLozinka(e.target.value)} style={{ ...inp, marginBottom: 0, paddingRight: 44 }} />
               <button style={eyeBtn} onClick={() => setShowNova(!showNova)}>
@@ -423,7 +423,7 @@ export default function Home() {
   }, [])
 
   if (authLoading) return (
-    <div style={{ background: '#0a0a0f', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <span style={{ color: '#00ffb3', fontSize: 32 }}>💼</span>
     </div>
   )
@@ -431,10 +431,10 @@ export default function Home() {
   if (!user) return <LoginPage />
 
   return (
-    <div style={{ background: '#0a0a0f', minHeight: '100vh', color: 'white', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ borderBottom: '1px solid #1a1a2e', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>💼</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Paušalac</span>
@@ -443,12 +443,12 @@ export default function Home() {
           <select
             value={godina}
             onChange={e => setGodina(e.target.value)}
-            style={{ background: '#111', border: '1px solid #1a2040', borderRadius: 20, padding: '4px 12px', color: '#00ffb3', fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '4px 12px', color: '#00ffb3', fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
           >
             {godinaOptions.map(g => <option key={g} value={g}>{g}.</option>)}
           </select>
           <ThemeToggle />
-          <button onClick={logout} style={{ fontSize: 11, color: '#555', background: '#111', padding: '4px 10px', borderRadius: 20, border: '1px solid #222', cursor: 'pointer' }}>
+          <button onClick={logout} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', cursor: 'pointer' }}>
             Odjavi se
           </button>
         </div>
@@ -457,33 +457,34 @@ export default function Home() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px' }}>
 
         {loading && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: '#444' }}>Učitavanje...</div>
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Učitavanje...</div>
         )}
 
         {!loading && tab === 'dashboard' && (
           <>
-            <div style={{ background: 'linear-gradient(135deg, #0d1117 0%, #0a0f1e 100%)', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, background: '#00ffb3', borderRadius: '50%', filter: 'blur(80px)', opacity: 0.15 }} />
+            {/* Ukupni prihod kartica */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
+              <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, background: '#00ffb3', borderRadius: '50%', filter: 'blur(80px)', opacity: 0.08 }} />
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
-                  <p style={{ color: '#555', fontSize: 12, marginBottom: 4 }}>UKUPNI PRIHOD · {godina}.</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>UKUPNI PRIHOD · {godina}.</p>
                   <p style={{ fontSize: 36, fontWeight: 800, color: '#00ffb3', margin: '0 0 4px 0', textShadow: '0 0 30px #00ffb340' }}>
-                    {ukupnoRSD.toLocaleString()} <span style={{ fontSize: 16, color: '#444' }}>RSD</span>
+                    {ukupnoRSD.toLocaleString()} <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>RSD</span>
                   </p>
-                  <p style={{ color: '#444', fontSize: 14, margin: '0 0 20px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 20px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
                 </div>
                 <button
                   onClick={() => generatePDF(fakture, godina, user.email || '', { ukupnoRSD, porez, pio, zdravstvo, neto, procenat })}
-                  style={{ background: '#0a1a10', border: '1px solid #00ffb340', borderRadius: 10, padding: '8px 14px', color: '#00ffb3', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                  style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 10, padding: '8px 14px', color: 'var(--accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
                 >
                   📄 Izvezi PDF
                 </button>
               </div>
 
-              <div style={{ background: '#111', borderRadius: 8, height: 8, marginBottom: 8, overflow: 'hidden' }}>
+              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 8, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${procenat}%`, background: bojaBar, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar}`, transition: 'width 0.5s ease' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#444' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
                 <span>{procenat.toFixed(1)}% od limita</span>
                 <span>6.000.000 RSD</span>
               </div>
@@ -495,6 +496,7 @@ export default function Home() {
               )}
             </div>
 
+            {/* Grid kartice */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
               {[
                 { label: 'NETO PRIHOD', value: neto, boja: '#a855f7', sub: 'RSD' },
@@ -502,27 +504,28 @@ export default function Home() {
                 { label: 'PIO DOPRINOS', value: pio, boja: '#3b82f6', sub: 'RSD (24%)' },
                 { label: 'BROJ FAKTURA', value: fakture.length, boja: '#00ffb3', sub: 'unetih', big: true },
               ].map(item => (
-                <div key={item.label} style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 20, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, background: item.boja, borderRadius: '50%', filter: 'blur(40px)', opacity: 0.2 }} />
-                  <p style={{ color: '#555', fontSize: 11, margin: '0 0 8px 0' }}>{item.label}</p>
+                <div key={item.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, background: item.boja, borderRadius: '50%', filter: 'blur(40px)', opacity: 0.15 }} />
+                  <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>{item.label}</p>
                   <p style={{ fontSize: item.big ? 36 : 22, fontWeight: item.big ? 800 : 700, color: item.boja, margin: 0 }}>{item.value.toLocaleString()}</p>
-                  <p style={{ color: '#333', fontSize: 11, margin: '4px 0 0 0' }}>{item.sub}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>{item.sub}</p>
                 </div>
               ))}
             </div>
 
-            <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 20 }}>
-              <p style={{ color: '#555', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE PREMA DRŽAVI</p>
+            {/* Obaveze prema državi */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE PREMA DRŽAVI</p>
               {[
                 { label: 'Porez na prihod', value: porez, procenat: '10%', boja: '#f59e0b' },
                 { label: 'PIO doprinos', value: pio, procenat: '24%', boja: '#3b82f6' },
                 { label: 'Zdravstveno', value: zdravstvo, procenat: '10.3%', boja: '#a855f7' },
               ].map(item => (
-                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #111' }}>
+                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.boja, boxShadow: `0 0 6px ${item.boja}` }} />
-                    <span style={{ color: '#888', fontSize: 14 }}>{item.label}</span>
-                    <span style={{ color: '#333', fontSize: 12 }}>{item.procenat}</span>
+                    <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>{item.label}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{item.procenat}</span>
                   </div>
                   <span style={{ color: item.boja, fontWeight: 700, fontSize: 15 }}>{item.value.toLocaleString()} RSD</span>
                 </div>
@@ -535,40 +538,40 @@ export default function Home() {
         )}
 
         {!loading && tab === 'dodaj' && (
-          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24 }}>
-            <p style={{ color: '#555', fontSize: 11, margin: '0 0 20px 0' }}>NOVI PRIHOD</p>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>NOVI PRIHOD</p>
             {[
               { placeholder: 'Ime klijenta', key: 'klijent', type: 'text' },
             ].map(field => (
               <input key={field.key} type={field.type} placeholder={field.placeholder}
                 value={forma[field.key as keyof typeof forma]}
                 onChange={e => setForma({ ...forma, [field.key]: e.target.value })}
-                style={{ width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }}
+                style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }}
               />
             ))}
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <input type="number" placeholder="Iznos" value={forma.iznos} onChange={e => setForma({ ...forma, iznos: e.target.value })}
-                style={{ flex: 1, background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, outline: 'none' }}
+                style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }}
               />
               <select value={forma.valuta} onChange={e => setForma({ ...forma, valuta: e.target.value as Valuta })}
-                style={{ background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, outline: 'none' }}>
+                style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }}>
                 <option>EUR</option><option>USD</option><option>RSD</option>
               </select>
             </div>
             <input type="date" value={forma.datum} onChange={e => setForma({ ...forma, datum: e.target.value })}
-              style={{ width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 4, boxSizing: 'border-box', outline: 'none' }}
+              style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 4, boxSizing: 'border-box', outline: 'none' }}
             />
             {kursPrikaz && (
-              <p style={{ color: '#444', fontSize: 11, margin: '0 0 8px 4px' }}>📈 NBS kurs: {kursPrikaz}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 4px' }}>📈 NBS kurs: {kursPrikaz}</p>
             )}
             {iznosRsdPrikaz && forma.valuta !== 'RSD' && (
-              <div style={{ background: '#0a1a0f', border: '1px solid #00ffb330', borderRadius: 10, padding: '10px 16px', marginBottom: 12 }}>
-                <p style={{ color: '#555', fontSize: 11, margin: '0 0 2px 0' }}>IZNOS U RSD</p>
-                <p style={{ color: '#00ffb3', fontWeight: 700, fontSize: 18, margin: 0 }}>≈ {iznosRsdPrikaz}</p>
+              <div style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 10, padding: '10px 16px', marginBottom: 12 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 2px 0' }}>IZNOS U RSD</p>
+                <p style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 18, margin: 0 }}>≈ {iznosRsdPrikaz}</p>
               </div>
             )}
             <input type="text" placeholder="Napomena (opciono)" value={forma.napomena} onChange={e => setForma({ ...forma, napomena: e.target.value })}
-              style={{ width: '100%', background: '#111', border: '1px solid #1a2040', borderRadius: 10, padding: '12px 16px', color: 'white', fontSize: 14, marginBottom: 20, boxSizing: 'border-box', outline: 'none' }}
+              style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 20, boxSizing: 'border-box', outline: 'none' }}
             />
             <button onClick={dodajFakturu} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340' }}>
               + Dodaj prihod
@@ -579,36 +582,36 @@ export default function Home() {
         {!loading && tab === 'fakture' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <p style={{ color: '#555', fontSize: 11, margin: 0 }}>PRIHODI {godina}. ({fakture.length})</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>PRIHODI {godina}. ({fakture.length})</p>
               {fakture.length > 0 && (
                 <button
                   onClick={() => generatePDF(fakture, godina, user.email || '', { ukupnoRSD, porez, pio, zdravstvo, neto, procenat })}
-                  style={{ background: '#0a1a10', border: '1px solid #00ffb340', borderRadius: 8, padding: '6px 12px', color: '#00ffb3', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 8, padding: '6px 12px', color: 'var(--accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                 >
                   📄 Izvezi PDF
                 </button>
               )}
             </div>
             {fakture.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: '#333' }}>
+              <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
                 <p style={{ fontSize: 40 }}>📋</p>
                 <p>Nema prihoda za {godina}. godinu</p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {fakture.map(f => (
-                  <div key={f.id} style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div key={f.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <p style={{ fontWeight: 700, margin: '0 0 4px 0' }}>{f.klijent}</p>
-                      <p style={{ color: '#444', fontSize: 12, margin: 0 }}>{f.datum || 'Bez datuma'}</p>
-                      {f.napomena && <p style={{ color: '#333', fontSize: 12, margin: '4px 0 0 0' }}>{f.napomena}</p>}
+                      <p style={{ fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text-primary)' }}>{f.klijent}</p>
+                      <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.datum || 'Bez datuma'}</p>
+                      {f.napomena && <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '4px 0 0 0' }}>{f.napomena}</p>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                       <div style={{ textAlign: 'right' }}>
                         <p style={{ color: '#00ffb3', fontWeight: 700, margin: '0 0 2px 0' }}>{f.iznos} {f.valuta}</p>
-                        <p style={{ color: '#333', fontSize: 12, margin: 0 }}>{f.iznos_rsd.toLocaleString()} RSD</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.iznos_rsd.toLocaleString()} RSD</p>
                       </div>
-                      <button onClick={() => obrisi(f.id)} style={{ background: 'none', border: 'none', color: '#333', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                      <button onClick={() => obrisi(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>×</button>
                     </div>
                   </div>
                 ))}
@@ -620,7 +623,7 @@ export default function Home() {
 
       {tab === 'settings' && (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <p style={{ color: '#444', fontSize: 14, marginBottom: 16 }}>Podešavanja profila</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 16 }}>Podešavanja profila</p>
           <a href="/settings" style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px 32px', borderRadius: 12, textDecoration: 'none' }}>
             Otvori podešavanja →
           </a>
@@ -628,7 +631,7 @@ export default function Home() {
       )}
 
       {/* Bottom nav */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#0a0a0f', borderTop: '1px solid #1a1a2e', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
         {[
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
           { key: 'fakture', icon: '📋', label: 'Prihodi' },
@@ -638,7 +641,7 @@ export default function Home() {
           { key: 'settings', icon: '⚙️', label: 'Profil', href: '/settings' },
         ].map(item => (
           <button key={item.key} onClick={() => (item as any).href ? window.location.href = (item as any).href : setTab(item.key as any)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? '#00ffb3' : '#444', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? '#00ffb3' : 'var(--text-muted)', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
             <span style={{ fontSize: 22 }}>{item.icon}</span>
             {item.label}
           </button>
