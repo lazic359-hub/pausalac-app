@@ -3,7 +3,7 @@ import SmartInsights from "@/components/SmartInsights";
 import { getEurToRsdRate } from '@/lib/exchange-rate'
 import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
-import MonthlyObligations from '../../components/MonthlyObligations'
+import MonthlyObligations from '@/components/MonthlyObligations'
 import PoresniKalendar from "@/components/PoresniKalendar";
 import { ThemeToggle } from '@/components/ThemeToggle'
 

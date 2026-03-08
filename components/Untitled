@@ -1,0 +1,296 @@
+"use client";
+
+import { useState, useEffect, useMemo } from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+
+interface KPOFaktura {
+  id: string;
+  datum: string;
+  iznos_rsd: number;
+  klijent?: string;
+}
+
+interface SmartInsightsProps {
+  onOpenQRModal?: () => void;
+}
+
+const LIMIT_6M = 6_000_000;
+const WARNING_THRESHOLD = 5_000_000;
+const ACCENT = "#00ffb3";
+
+const MONTHS_SR = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Avg","Sep","Okt","Nov","Dec"];
+const MONTHS_SR_FULL = ["Januar","Februar","Mart","April","Maj","Jun","Jul","Avgust","Septembar","Oktobar","November","Decembar"];
+
+const TEST_PITANJA = [
+  { pitanje: "Radiš isključivo za jednog klijenta?", objasnjenje: "Ako sav prihod dolazi od jednog klijenta, poreski organ može smatrati da si zapravo radnik, ne preduzetnik." },
+  { pitanje: "Klijent ti određuje radno vreme?", objasnjenje: "Kontrola radnog vremena je ključni indikator radnog odnosa, što može dovesti do reklasifikacije." },
+  { pitanje: "Klijent ti obezbeđuje opremu i alate?", objasnjenje: "Korišćenje klijentove opreme smanjuje tvoju poslovnu samostalnost." },
+  { pitanje: "Nemaš sopstvenu poslovnu adresu?", objasnjenje: "Odsustvo poslovne adrese odvojene od klijenta može biti rizik." },
+  { pitanje: "Ne možeš slobodno birati metode rada?", objasnjenje: "Preduzetnik sam odlučuje kako će posao izvršiti — ako ne možeš, to je rizik." },
+  { pitanje: "Klijent ima pravo da raskine saradnju bez otkaznog roka?", objasnjenje: "Ovakve klauzule su karakteristika radnog, a ne poslovnog odnosa." },
+  { pitanje: "Primaš fiksnu mesečnu naknadu bez veze sa obimom posla?", objasnjenje: "Fiksna plata bez projektne osnove liči na platu radnika." },
+  { pitanje: "Ne možeš angažovati podizvođače bez odobrenja?", objasnjenje: "Pravi preduzetnik slobodno angažuje saradnike." },
+  { pitanje: "Klijent ti plaća godišnji odmor ili bolovanje?", objasnjenje: "Ovo su prava radnika — ako ih primaš kao preduzetnik, to je ozbiljan rizik." },
+];
+
+function daysUntilNext15(): number {
+  const now = new Date();
+  const next15 = new Date(now.getFullYear(), now.getMonth(), 15);
+  if (now.getDate() >= 15) next15.setMonth(next15.getMonth() + 1);
+  return Math.ceil((next15.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+function formatBroj(n: number): string {
+  return new Intl.NumberFormat("sr-RS").format(Math.round(n));
+}
+
+function loadKPO(): KPOFaktura[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem("kpo_knjiga");
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+const labelStyle: React.CSSProperties = {
+  color: "var(--text-muted)",
+  fontSize: 11,
+  margin: "0 0 12px 0",
+  letterSpacing: 1,
+};
+
+function BurnRatePanel({ fakture }: { fakture: KPOFaktura[] }) {
+  const { ukupno, prosecniMesecni, dostizeMonth, prekoracio } = useMemo(() => {
+    const ukupno = fakture.reduce((s, f) => s + (f.iznos_rsd || 0), 0);
+    const byMonth: Record<string, number> = {};
+    fakture.forEach(f => {
+      const key = f.datum?.slice(0, 7);
+      if (key) byMonth[key] = (byMonth[key] || 0) + (f.iznos_rsd || 0);
+    });
+    const months = Object.keys(byMonth).length || 1;
+    const prosecniMesecni = ukupno / months;
+    let dostizeMonth = "—";
+    if (prosecniMesecni > 0) {
+      const preostalo = LIMIT_6M - ukupno;
+      if (preostalo > 0) {
+        const mesecaPreostalo = Math.ceil(preostalo / prosecniMesecni);
+        const target = new Date();
+        target.setMonth(target.getMonth() + mesecaPreostalo);
+        dostizeMonth = `${MONTHS_SR_FULL[target.getMonth()]} ${target.getFullYear()}`;
+      } else { dostizeMonth = "već prešen"; }
+    }
+    return { ukupno, prosecniMesecni, dostizeMonth, prekoracio: ukupno >= WARNING_THRESHOLD };
+  }, [fakture]);
+
+  const progress = Math.min((ukupno / LIMIT_6M) * 100, 100);
+  const bojaBar = prekoracio ? "#ff4d4d" : ACCENT;
+
+  return (
+    <div style={{ background: prekoracio ? "rgba(255,77,77,0.05)" : "var(--bg-card)", border: prekoracio ? "1px solid #ff4d4d40" : "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
+      <p style={labelStyle}>🔥 BURN-RATE ANALIZA</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
+        <div>
+          <p style={{ fontSize: 28, fontWeight: 800, color: ACCENT, margin: "0 0 4px 0" }}>
+            {formatBroj(ukupno)} <span style={{ fontSize: 14, color: "var(--text-muted)", fontWeight: 400 }}>RSD</span>
+          </p>
+          <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0 }}>
+            Prosek: <span style={{ color: ACCENT }}>{formatBroj(prosecniMesecni)} RSD/mes</span>
+          </p>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "0 0 2px 0" }}>Limit</p>
+          <p style={{ color: "var(--text-primary)", fontSize: 15, fontWeight: 700, margin: 0 }}>6.000.000</p>
+        </div>
+      </div>
+      <div style={{ background: "var(--bg-primary)", borderRadius: 8, height: 8, marginBottom: 8, overflow: "hidden" }}>
+        <div style={{ height: "100%", width: `${progress}%`, background: bojaBar, borderRadius: 8, transition: "width 0.5s ease" }} />
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 10 }}>
+        <span>{progress.toFixed(1)}% od limita</span>
+        <span>6.000.000 RSD</span>
+      </div>
+      {prekoracio ? (
+        <div style={{ background: "rgba(255,77,77,0.1)", border: "1px solid #ff4d4d40", borderRadius: 8, padding: "10px 14px" }}>
+          <p style={{ color: "#ff6b6b", fontSize: 13, margin: 0 }}>⚠️ Prešao si 5M RSD — konsultuj računovođu!</p>
+        </div>
+      ) : prosecniMesecni > 0 ? (
+        <div style={{ background: "var(--accent-dim)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px" }}>
+          <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
+            Ako nastaviš ovim tempom, limit ćeš dostići u <span style={{ color: ACCENT, fontWeight: 700 }}>{dostizeMonth}</span>.
+          </p>
+        </div>
+      ) : (
+        <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>Dodaj fakture da vidiš projekciju.</p>
+      )}
+    </div>
+  );
+}
+
+function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
+  const days = daysUntilNext15();
+  const urgent = days <= 3;
+  const soon = days <= 7;
+  const boja = urgent ? "#ff4d4d" : soon ? "#ffcc00" : ACCENT;
+
+  return (
+    <div style={{ background: urgent ? "rgba(255,77,77,0.05)" : soon ? "rgba(255,204,0,0.05)" : "var(--bg-card)", border: urgent ? "1px solid #ff4d4d40" : soon ? "1px solid #ffcc0030" : "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
+      <p style={labelStyle}>⏰ PORESKI PODSETNIK</p>
+      <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+        <div style={{ flexShrink: 0, width: 60, height: 60, borderRadius: 12, background: "var(--bg-primary)", border: `1px solid ${boja}30`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 26, fontWeight: 900, color: boja, lineHeight: 1 }}>{days}</span>
+          <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>dana</span>
+        </div>
+        <div>
+          <p style={{ fontSize: 14, color: "var(--text-primary)", margin: "0 0 4px 0" }}>
+            Preostalo <span style={{ color: boja, fontWeight: 700 }}>{days} {days === 1 ? "dan" : "dana"}</span> za uplatu poreza i doprinosa.
+          </p>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>Rok plaćanja: 15. u mesecu</p>
+        </div>
+      </div>
+      {onOpenQRModal && (
+        <button onClick={onOpenQRModal} style={{ width: "100%", background: "var(--accent-dim)", border: "1px solid var(--border)", borderRadius: 10, padding: "11px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+          Otvori QR kodove za plaćanje →
+        </button>
+      )}
+    </div>
+  );
+}
+
+const CustomTooltip = ({ active, payload, label: l }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px" }}>
+        <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "0 0 4px 0" }}>{l}</p>
+        <p style={{ color: ACCENT, fontWeight: 700, fontSize: 13, margin: 0 }}>{formatBroj(payload[0].value)} RSD</p>
+      </div>
+    );
+  }
+  return null;
+};
+
+function MiniChart({ fakture }: { fakture: KPOFaktura[] }) {
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+
+  const data = useMemo(() => MONTHS_SR.map((mes, i) => ({
+    mes,
+    iznos: fakture.filter(f => {
+      if (!f.datum) return false;
+      const d = new Date(f.datum);
+      return d.getFullYear() === currentYear && d.getMonth() === i;
+    }).reduce((s, f) => s + (f.iznos_rsd || 0), 0),
+  })), [fakture, currentYear]);
+
+  return (
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
+      <p style={labelStyle}>📊 PRIHODI {currentYear}.</p>
+      <div style={{ height: 140 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart data={data} barSize={14} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
+            <XAxis dataKey="mes" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+            <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(128,128,128,0.05)" }} />
+            <Bar dataKey="iznos" radius={[4, 4, 0, 0]}>
+              {data.map((_, i) => (
+                <Cell key={i} fill={i === currentMonth ? ACCENT : i < currentMonth ? "#00ffb350" : "rgba(128,128,128,0.1)"} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+      <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "8px 0 0 0", textAlign: "center" }}>
+        Svetlo zeleno = tekući mesec
+      </p>
+    </div>
+  );
+}
+
+function TestSamostalnosti() {
+  const [open, setOpen] = useState(false);
+  const [odgovori, setOdgovori] = useState<Record<number, boolean | null>>({});
+
+  const daCount = Object.values(odgovori).filter(v => v === true).length;
+  const rizican = daCount >= 3;
+  const answered = Object.keys(odgovori).length;
+
+  function toggle(i: number, val: boolean) {
+    setOdgovori(prev => ({ ...prev, [i]: prev[i] === val ? null : val }));
+  }
+
+  return (
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <p style={labelStyle}>⚖️ TEST SAMOSTALNOSTI</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px 0" }}>Proveri rizik</p>
+          {answered > 0 && (
+            <p style={{ fontSize: 12, color: rizican ? "#ff6b6b" : ACCENT, margin: 0, fontWeight: 700 }}>
+              {rizican ? `⚠️ Visok rizik (${daCount}/9)` : `✓ Nizak rizik (${daCount}/9)`}
+            </p>
+          )}
+        </div>
+        <button onClick={() => setOpen(p => !p)}
+          style={{ background: "var(--accent-dim)", border: "1px solid var(--border)", borderRadius: 10, padding: "10px 16px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+          {open ? "Zatvori" : "Pokreni test"}
+        </button>
+      </div>
+
+      {open && (
+        <div style={{ marginTop: 16 }}>
+          {TEST_PITANJA.map((p, i) => (
+            <div key={i} style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
+              <p style={{ fontSize: 13, color: "var(--text-primary)", margin: "0 0 10px 0", fontWeight: 500 }}>
+                {i + 1}. {p.pitanje}
+              </p>
+              <div style={{ display: "flex", gap: 8, marginBottom: odgovori[i] === true ? 8 : 0 }}>
+                {(["DA", "NE"] as const).map(labelBtn => {
+                  const val = labelBtn === "DA";
+                  const active = odgovori[i] === val;
+                  return (
+                    <button key={labelBtn} onClick={() => toggle(i, val)}
+                      style={{ padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", background: active ? (val ? "rgba(255,77,77,0.1)" : "var(--accent-dim)") : "var(--bg-card)", border: active ? `1px solid ${val ? "#ff4d4d60" : "#00ffb340"}` : "1px solid var(--border)", color: active ? (val ? "#ff6b6b" : ACCENT) : "var(--text-muted)" }}>
+                      {labelBtn}
+                    </button>
+                  );
+                })}
+              </div>
+              {odgovori[i] === true && (
+                <p style={{ color: "#ff6b6b", fontSize: 12, margin: 0, lineHeight: 1.5 }}>⚠️ {p.objasnjenje}</p>
+              )}
+            </div>
+          ))}
+          {answered === 9 && (
+            <div style={{ borderRadius: 12, padding: "16px", textAlign: "center", fontSize: 13, fontWeight: 700, background: rizican ? "rgba(255,77,77,0.1)" : "var(--accent-dim)", border: `1px solid ${rizican ? "#ff4d4d40" : "#00ffb330"}`, color: rizican ? "#ff6b6b" : ACCENT }}>
+              {rizican ? `⚠️ Visok rizik! ${daCount}/9 faktora ukazuju na prikriveni radni odnos. Konsultuj pravnog savetnika.` : `✓ Nizak rizik. Tvoja poslovna samostalnost izgleda dobro.`}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function SmartInsights({ onOpenQRModal }: SmartInsightsProps) {
+  const [fakture, setFakture] = useState<KPOFaktura[]>([]);
+
+  useEffect(() => {
+    const load = () => setFakture(loadKPO());
+    load();
+    window.addEventListener("storage", load);
+    const interval = setInterval(load, 2000);
+    return () => { window.removeEventListener("storage", load); clearInterval(interval); };
+  }, []);
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        <div style={{ width: 3, height: 18, borderRadius: 2, background: ACCENT }} />
+        <p style={{ color: "var(--text-muted)", fontSize: 11, margin: 0, letterSpacing: 1 }}>SMART INSIGHTS</p>
+      </div>
+      <BurnRatePanel fakture={fakture} />
+      <TaxCountdown onOpenQRModal={onOpenQRModal} />
+      <MiniChart fakture={fakture} />
+      <TestSamostalnosti />
+    </div>
+  );
+}
