@@ -107,7 +107,6 @@ export default function KpoPage() {
       .replace(/[ž]/g, 'z').replace(/[Ž]/g, 'Z')
       .replace(/[đ]/g, 'dj').replace(/[Đ]/g, 'Dj')
 
-    // Učitaj podatke o firmi
     const profilRaw = localStorage.getItem('pausalac_profil')
     const profil = profilRaw ? JSON.parse(profilRaw) : {}
     const nazivFirme = ascii(profil.nazivFirme || '')
@@ -117,7 +116,6 @@ export default function KpoPage() {
     const formatIznosPDF = (iznos: number) =>
       new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos) + ' RSD'
 
-    // Sortiraj hronološki
     const sortirane = [...filtrirane].sort(
       (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
     )
@@ -133,7 +131,6 @@ export default function KpoPage() {
       }
     }
 
-    // Zaglavlje firme (gornji levi ugao)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 0, 0)
@@ -145,11 +142,9 @@ export default function KpoPage() {
     if (pib) doc.text(`PIB: ${pib}`, 14, 20)
     if (maticniBroj) doc.text(`Maticni broj: ${maticniBroj}`, 14, 25)
 
-    // Linija ispod zaglavlja firme
     doc.setDrawColor(200, 200, 200)
     doc.line(14, 29, 196, 29)
 
-    // Naslov dokumenta
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(0, 0, 0)
@@ -161,7 +156,6 @@ export default function KpoPage() {
     doc.text(`Period: ${filter !== 'sve' ? filter : 'Cela godina'}`, 14, 44)
     doc.text(`Ukupno: ${formatIznosPDF(ukupno)}`, 14, 49)
 
-    // Zaglavlje tabele
     const tableTop = 55
     doc.setFontSize(9)
     doc.setTextColor(0, 0, 0)
@@ -181,7 +175,6 @@ export default function KpoPage() {
     sortirane.forEach((f, i) => {
       if (y > 275) {
         doc.addPage()
-        // Ponovi zaglavlje na novoj strani
         doc.setFillColor(220, 220, 220)
         doc.rect(14, 14, 182, 8, 'F')
         doc.setFont('helvetica', 'bold')
@@ -210,13 +203,11 @@ export default function KpoPage() {
       y += 9
     })
 
-    // Ukupno na kraju
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(0, 0, 0)
     doc.text(`UKUPNO: ${formatIznosPDF(ukupno)}`, 196, y + 8, { align: 'right' })
 
-    // Mesto, datum i potpis
     const sediste = profil.sediste ? `U ${ascii(profil.sediste)}` : 'U ______'
     const d = new Date()
     const datumDanas = `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`
@@ -260,7 +251,6 @@ export default function KpoPage() {
       'IZNOS (RSD)': f.iznos,
     }))
 
-    // Ukupno red
     redovi.push({
       'BR.': '' as any,
       'DATUM': '',
@@ -272,20 +262,14 @@ export default function KpoPage() {
 
     const ws = XLSX.utils.json_to_sheet(redovi)
 
-    // Boldiranje zaglavlja
     const zaglavlje = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1']
     zaglavlje.forEach(ref => {
       if (ws[ref]) ws[ref].s = { font: { bold: true } }
     })
 
-    // Širine kolona
     ws['!cols'] = [
-      { wch: 5 },   // BR.
-      { wch: 12 },  // DATUM
-      { wch: 30 },  // KUPAC
-      { wch: 18 },  // BROJ FAKTURE
-      { wch: 20 },  // NACIN PLACANJA
-      { wch: 15 },  // IZNOS
+      { wch: 5 }, { wch: 12 }, { wch: 30 },
+      { wch: 18 }, { wch: 20 }, { wch: 15 },
     ]
 
     const wb = XLSX.utils.book_new()
@@ -298,12 +282,12 @@ export default function KpoPage() {
   }
 
   return (
-    <div style={{ background: '#0a0a0f', minHeight: '100vh', color: 'white', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
 
       {/* Header */}
-      <div style={{ borderBottom: '1px solid #1a1a2e', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: '#555', fontSize: 20, cursor: 'pointer' }}>←</button>
+          <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>←</button>
           <span style={{ fontSize: 18 }}>📒</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Arhiva i KPO</span>
         </div>
@@ -327,32 +311,32 @@ export default function KpoPage() {
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 40px 16px' }}>
 
         {/* Ukupan promet */}
-        <div style={{ background: 'linear-gradient(135deg, #0d1117 0%, #0a0f1e 100%)', border: '1px solid #1a2040', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <p style={{ color: '#555', fontSize: 11, margin: '0 0 4px 0' }}>UKUPAN PROMET {selectedGodina}.</p>
-            <p style={{ color: '#00ffb3', fontWeight: 800, fontSize: 28, margin: 0 }}>{ukupnoSve.toLocaleString()} <span style={{ fontSize: 14, color: '#444' }}>RSD</span></p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>UKUPAN PROMET {selectedGodina}.</p>
+            <p style={{ color: '#00ffb3', fontWeight: 800, fontSize: 28, margin: 0 }}>{ukupnoSve.toLocaleString()} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>RSD</span></p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ color: '#555', fontSize: 11, margin: '0 0 4px 0' }}>BROJ FAKTURA</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>BROJ FAKTURA</p>
             <p style={{ color: '#00ffb3', fontWeight: 800, fontSize: 28, margin: 0 }}>{fakture.length}</p>
           </div>
         </div>
 
         {/* Godišnji filter */}
         <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-          <span style={{ color: '#555', fontSize: 12 }}>Godina:</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Godina:</span>
           {[2022, 2023, 2024, 2025, 2026].map(g => (
             <button
               key={g}
               onClick={() => setSelectedGodina(g)}
               style={{
-                background: selectedGodina === g ? '#00ffb3' : '#0d1117',
-                color: selectedGodina === g ? '#000' : '#555',
+                background: selectedGodina === g ? '#00ffb3' : 'var(--bg-card)',
+                color: selectedGodina === g ? '#000' : 'var(--text-muted)',
                 fontWeight: selectedGodina === g ? 700 : 400,
                 fontSize: 13,
                 padding: '6px 12px',
                 borderRadius: 10,
-                border: `1px solid ${selectedGodina === g ? '#00ffb3' : '#1a2040'}`,
+                border: `1px solid ${selectedGodina === g ? '#00ffb3' : 'var(--border)'}`,
                 cursor: 'pointer',
               }}
             >
@@ -369,13 +353,13 @@ export default function KpoPage() {
               onClick={() => setFilter(k)}
               style={{
                 flex: 1,
-                background: filter === k ? '#00ffb3' : '#0d1117',
-                color: filter === k ? '#000' : '#555',
+                background: filter === k ? '#00ffb3' : 'var(--bg-card)',
+                color: filter === k ? '#000' : 'var(--text-muted)',
                 fontWeight: filter === k ? 700 : 400,
                 fontSize: 13,
                 padding: '8px 0',
                 borderRadius: 10,
-                border: `1px solid ${filter === k ? '#00ffb3' : '#1a2040'}`,
+                border: `1px solid ${filter === k ? '#00ffb3' : 'var(--border)'}`,
                 cursor: 'pointer',
               }}
             >
@@ -386,8 +370,8 @@ export default function KpoPage() {
 
         {/* Undo poruka */}
         {undoStavka && (
-          <div style={{ background: '#1a2040', border: '1px solid #00ffb330', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ color: '#888', fontSize: 13, margin: 0 }}>Faktura obrisana</p>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Faktura obrisana</p>
             <button onClick={undo} style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 12, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer' }}>
               ↩ Vrati
             </button>
@@ -396,19 +380,19 @@ export default function KpoPage() {
 
         {/* Tabela */}
         {filtrirane.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: '#333' }}>
+          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
             <p style={{ fontSize: 40 }}>📒</p>
             <p>Nema faktura {filter !== 'sve' ? `za ${filter}` : ''}</p>
           </div>
         ) : (
-          <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, overflow: 'hidden' }}>
+          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
 
             {/* Header tabele */}
-            <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid #1a2040', background: '#111' }}>
-              <p style={{ color: '#444', fontSize: 11, margin: 0 }}>BR.</p>
-              <p style={{ color: '#444', fontSize: 11, margin: 0 }}>DATUM</p>
-              <p style={{ color: '#444', fontSize: 11, margin: 0 }}>KUPAC</p>
-              <p style={{ color: '#444', fontSize: 11, margin: 0, textAlign: 'right' }}>IZNOS</p>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>BR.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>DATUM</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>KUPAC</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>IZNOS</p>
               <div />
             </div>
 
@@ -416,10 +400,10 @@ export default function KpoPage() {
             {filtriranesBrojevima.map((f, i) => (
               <div key={i}>
                 {brisanje === i ? (
-                  <div style={{ padding: '14px 16px', background: '#1a0a0a', borderBottom: '1px solid #1a2040', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ padding: '14px 16px', background: '#1a0a0a', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>Obrisati ovu fakturu?</p>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setBrisanje(null)} style={{ background: '#1a2040', border: 'none', color: '#888', fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>
+                      <button onClick={() => setBrisanje(null)} style={{ background: 'var(--bg-card)', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>
                         Otkaži
                       </button>
                       <button onClick={() => obrisi(i)} style={{ background: '#ff4d4d', border: 'none', color: 'white', fontWeight: 700, fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>
@@ -428,14 +412,14 @@ export default function KpoPage() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid #111', alignItems: 'center' }}>
-                    <p style={{ color: '#444', fontSize: 12, margin: 0 }}>{f.redniBroj}.</p>
-                    <p style={{ color: '#666', fontSize: 12, margin: 0 }}>{formatDatum(f.datum)}</p>
-                    <p style={{ color: '#ddd', fontSize: 13, fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.klijent}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.redniBroj}.</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{formatDatum(f.datum)}</p>
+                    <p style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.klijent}</p>
                     <p style={{ color: '#00ffb3', fontWeight: 700, fontSize: 13, margin: 0, textAlign: 'right' }}>{formatIznos(f.iznos)} RSD</p>
                     <button
                       onClick={() => potvrdiDrisanje(i)}
-                      style={{ background: 'none', border: 'none', color: '#333', fontSize: 18, cursor: 'pointer', textAlign: 'center' }}
+                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', textAlign: 'center' }}
                     >×</button>
                   </div>
                 )}
@@ -443,10 +427,10 @@ export default function KpoPage() {
             ))}
 
             {/* Footer — ukupno za filter */}
-            <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '14px 16px', background: '#111', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
               <div />
               <div />
-              <p style={{ color: '#555', fontSize: 12, margin: 0, fontWeight: 700 }}>UKUPNO {filter !== 'sve' ? filter : ''}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontWeight: 700 }}>UKUPNO {filter !== 'sve' ? filter : ''}</p>
               <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 14, margin: 0, textAlign: 'right' }}>{formatIznos(ukupno)} RSD</p>
               <div />
             </div>

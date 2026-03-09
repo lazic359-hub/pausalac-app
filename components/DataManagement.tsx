@@ -3,7 +3,6 @@
 import { useRef, useState } from 'react'
 import { Download, Upload, Trash2, ShieldCheck, AlertTriangle, CheckCircle } from 'lucide-react'
 
-// ─── Ključevi koje čuvamo ─────────────────────────────────────────────────────
 const STORAGE_KEYS = ['pausalac_profil', 'kpo_knjiga', 'pausalac_placanja']
 
 type ToastType = 'success' | 'error' | 'warning'
@@ -42,16 +41,10 @@ export default function DataManagement() {
     setTimeout(() => setToast(null), 4000)
   }
 
-  // ── Export ────────────────────────────────────────────────────────────────
   const handleExport = () => {
     const backup: Record<string, unknown> = {
-      _meta: {
-        verzija: '1.0',
-        datum: new Date().toISOString(),
-        aplikacija: 'Paušalac',
-      }
+      _meta: { verzija: '1.0', datum: new Date().toISOString(), aplikacija: 'Paušalac' }
     }
-
     STORAGE_KEYS.forEach(key => {
       const val = localStorage.getItem(key)
       if (val) {
@@ -59,7 +52,6 @@ export default function DataManagement() {
         catch { backup[key] = val }
       }
     })
-
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -70,28 +62,21 @@ export default function DataManagement() {
     showToast('Rezervna kopija preuzeta!', 'success')
   }
 
-  // ── Import ────────────────────────────────────────────────────────────────
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     if (!file.name.endsWith('.json')) {
       showToast('Fajl mora biti .json format!', 'error')
       return
     }
-
     const reader = new FileReader()
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target?.result as string)
-
-        // Validacija — mora biti objekat sa _meta poljem
         if (typeof data !== 'object' || !data._meta || data._meta.aplikacija !== 'Paušalac') {
           showToast('Nevažeći fajl — ovo nije Paušalac backup!', 'error')
           return
         }
-
-        // Uvezi samo poznate ključeve
         let uvezeno = 0
         STORAGE_KEYS.forEach(key => {
           if (data[key] !== undefined) {
@@ -99,30 +84,24 @@ export default function DataManagement() {
             uvezeno++
           }
         })
-
         if (uvezeno === 0) {
           showToast('Fajl je validan ali nema podataka za uvoz.', 'warning')
           return
         }
-
         showToast(`Uvezeno ${uvezeno} stavki! Stranica se osvežava...`, 'success')
         setTimeout(() => window.location.reload(), 1800)
-
       } catch {
         showToast('Greška: fajl nije validan JSON!', 'error')
       }
     }
     reader.readAsText(file)
-
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  // ── Clear ─────────────────────────────────────────────────────────────────
   const handleClear = () => {
     if (!confirmDelete) {
       setConfirmDelete(true)
-      setTimeout(() => setConfirmDelete(false), 5000) // auto-reset posle 5s
+      setTimeout(() => setConfirmDelete(false), 5000)
       return
     }
     STORAGE_KEYS.forEach(key => localStorage.removeItem(key))
@@ -137,34 +116,33 @@ export default function DataManagement() {
 
       {/* Separator */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '40px 0 28px 0' }}>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, #1a2535)' }} />
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, var(--border))' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <ShieldCheck size={14} color="#00ffb3" />
-          <span style={{ color: '#2a3a4a', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
             Sigurnost i Rezervna Kopija
           </span>
         </div>
-        <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, #1a2535, transparent)' }} />
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--border), transparent)' }} />
       </div>
 
       {/* Info box */}
       <div style={{
-        background: 'rgba(0,255,179,0.04)',
-        border: '1px solid rgba(0,255,179,0.12)',
+        background: 'var(--accent-dim)',
+        border: '1px solid var(--border)',
         borderRadius: 14, padding: '14px 18px',
         marginBottom: 24,
         display: 'flex', alignItems: 'flex-start', gap: 12,
       }}>
         <ShieldCheck size={16} color="#00ffb3" style={{ flexShrink: 0, marginTop: 2 }} />
-        <p style={{ color: '#4a6a58', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-          Tvoji podaci se čuvaju <strong style={{ color: '#5a8a70' }}>isključivo u ovom browseru</strong>. Preporučujemo da povremeno napraviš rezervnu kopiju kako ne bi izgubio podatke ako obrišeš cache ili promeniš uređaj.
+        <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
+          Tvoji podaci se čuvaju <strong style={{ color: 'var(--text-primary)' }}>isključivo u ovom browseru</strong>. Preporučujemo da povremeno napraviš rezervnu kopiju kako ne bi izgubio podatke ako obrišeš cache ili promeniš uređaj.
         </p>
       </div>
 
       {/* Dugmad */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Export */}
         <ActionBtn
           icon={<Download size={17} />}
           label="Preuzmi Rezervnu Kopiju"
@@ -173,7 +151,6 @@ export default function DataManagement() {
           onClick={handleExport}
         />
 
-        {/* Import */}
         <input
           ref={fileInputRef}
           type="file"
@@ -189,7 +166,6 @@ export default function DataManagement() {
           onClick={() => fileInputRef.current?.click()}
         />
 
-        {/* Delete */}
         <ActionBtn
           icon={<Trash2 size={17} />}
           label={confirmDelete ? '⚠️ Klikni ponovo da POTVRDIŠ brisanje' : 'Obriši sve podatke'}
@@ -205,7 +181,6 @@ export default function DataManagement() {
   )
 }
 
-// ─── Action Button ────────────────────────────────────────────────────────────
 function ActionBtn({
   icon, label, sublabel, accent, danger = false, confirmed = false, onClick
 }: {
@@ -230,8 +205,8 @@ function ActionBtn({
           ? 'rgba(255,30,30,0.12)'
           : hovered
           ? `${accent}12`
-          : '#0a0f18',
-        border: `1px solid ${confirmed ? '#ff333360' : hovered ? accent + '50' : '#1a2535'}`,
+          : 'var(--bg-card)',
+        border: `1px solid ${confirmed ? '#ff333360' : hovered ? accent + '50' : 'var(--border)'}`,
         borderRadius: 14,
         padding: '16px 20px',
         cursor: 'pointer',
@@ -264,15 +239,15 @@ function ActionBtn({
       </div>
 
       <div style={{ flex: 1 }}>
-        <p style={{ color: danger ? (confirmed ? '#ff5555' : '#cc4444') : '#d0dce8', fontWeight: 600, fontSize: 14, margin: '0 0 3px 0' }}>
+        <p style={{ color: danger ? (confirmed ? '#ff5555' : '#cc4444') : 'var(--text-primary)', fontWeight: 600, fontSize: 14, margin: '0 0 3px 0' }}>
           {label}
         </p>
-        <p style={{ color: confirmed ? '#ff444488' : '#2a3a4a', fontSize: 12, margin: 0, lineHeight: 1.4 }}>
+        <p style={{ color: confirmed ? '#ff444488' : 'var(--text-muted)', fontSize: 12, margin: 0, lineHeight: 1.4 }}>
           {sublabel}
         </p>
       </div>
 
-      <div style={{ color: hovered ? accent : '#1a2535', fontSize: 18, transition: 'color 0.2s' }}>›</div>
+      <div style={{ color: hovered ? accent : 'var(--border)', fontSize: 18, transition: 'color 0.2s' }}>›</div>
     </button>
   )
 }

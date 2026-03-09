@@ -54,16 +54,8 @@ function loadKPO(): KPOFaktura[] {
   } catch { return []; }
 }
 
-const card: React.CSSProperties = {
-  background: "#0d1117",
-  border: "1px solid #1a2040",
-  borderRadius: 16,
-  padding: 20,
-  marginBottom: 12,
-};
-
 const labelStyle: React.CSSProperties = {
-  color: "#555",
+  color: "var(--text-muted)",
   fontSize: 11,
   margin: "0 0 12px 0",
   letterSpacing: 1,
@@ -100,26 +92,30 @@ function BurnRatePanel({ fakture }: { fakture: KPOFaktura[] }) {
   const bojaBar = prekoracio ? "#ff4d4d" : ACCENT;
 
   return (
-    <div style={{ ...card, border: prekoracio ? "1px solid #ff4d4d40" : "1px solid #1a2040", background: prekoracio ? "#1a0a0a" : "#0d1117" }}>
+    <div style={{
+      background: prekoracio ? "#1a0a0a" : "var(--bg-card)",
+      border: prekoracio ? "1px solid #ff4d4d40" : "1px solid var(--border)",
+      borderRadius: 16, padding: 20, marginBottom: 12,
+    }}>
       <p style={labelStyle}>🔥 BURN-RATE ANALIZA</p>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
         <div>
           <p style={{ fontSize: 28, fontWeight: 800, color: ACCENT, margin: "0 0 4px 0", textShadow: `0 0 20px ${ACCENT}40` }}>
-            {formatBroj(ukupno)} <span style={{ fontSize: 14, color: "#444", fontWeight: 400 }}>RSD</span>
+            {formatBroj(ukupno)} <span style={{ fontSize: 14, color: "var(--text-muted)", fontWeight: 400 }}>RSD</span>
           </p>
-          <p style={{ color: "#555", fontSize: 12, margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: 12, margin: 0 }}>
             Prosek: <span style={{ color: ACCENT }}>{formatBroj(prosecniMesecni)} RSD/mes</span>
           </p>
         </div>
         <div style={{ textAlign: "right" }}>
-          <p style={{ color: "#333", fontSize: 11, margin: "0 0 2px 0" }}>Limit</p>
-          <p style={{ color: "#555", fontSize: 15, fontWeight: 700, margin: 0 }}>6.000.000</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "0 0 2px 0" }}>Limit</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 15, fontWeight: 700, margin: 0 }}>6.000.000</p>
         </div>
       </div>
-      <div style={{ background: "#111", borderRadius: 8, height: 8, marginBottom: 8, overflow: "hidden" }}>
+      <div style={{ background: "var(--bg-primary)", borderRadius: 8, height: 8, marginBottom: 8, overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${progress}%`, background: bojaBar, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar}`, transition: "width 0.5s ease" }} />
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "#333", marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-muted)", marginBottom: 10 }}>
         <span>{progress.toFixed(1)}% od limita</span>
         <span>6.000.000 RSD</span>
       </div>
@@ -128,14 +124,14 @@ function BurnRatePanel({ fakture }: { fakture: KPOFaktura[] }) {
           <p style={{ color: "#ff6b6b", fontSize: 13, margin: 0 }}>⚠️ Prešao si 5M RSD — konsultuj računovođu!</p>
         </div>
       ) : prosecniMesecni > 0 ? (
-        <div style={{ background: "#0a1a10", border: "1px solid #00ffb320", borderRadius: 8, padding: "10px 14px" }}>
-          <p style={{ color: "#555", fontSize: 13, margin: 0 }}>
+        <div style={{ background: "var(--accent-dim)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px" }}>
+          <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
             Ako nastaviš ovim tempom, limit ćeš dostići u{" "}
             <span style={{ color: ACCENT, fontWeight: 700 }}>{dostizeMonth}</span>.
           </p>
         </div>
       ) : (
-        <p style={{ color: "#333", fontSize: 13, margin: 0 }}>Dodaj fakture da vidiš projekciju.</p>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>Dodaj fakture da vidiš projekciju.</p>
       )}
     </div>
   );
@@ -150,24 +146,28 @@ function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
   const boja = urgent ? "#ff4d4d" : soon ? "#ffcc00" : ACCENT;
 
   return (
-    <div style={{ ...card, border: urgent ? "1px solid #ff4d4d40" : soon ? "1px solid #ffcc0030" : "1px solid #1a2040", background: urgent ? "#1a0a0a" : soon ? "#1a1500" : "#0d1117" }}>
+    <div style={{
+      background: urgent ? "#1a0a0a" : "var(--bg-card)",
+      border: urgent ? "1px solid #ff4d4d40" : soon ? "1px solid #ffcc0060" : "1px solid var(--border)",
+      borderRadius: 16, padding: 20, marginBottom: 12,
+    }}>
       <p style={labelStyle}>⏰ PORESKI PODSETNIK</p>
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
-        <div style={{ flexShrink: 0, width: 60, height: 60, borderRadius: 12, background: "#111", border: `1px solid ${boja}30`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ flexShrink: 0, width: 60, height: 60, borderRadius: 12, background: "var(--bg-primary)", border: `1px solid ${boja}30`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
           <span style={{ fontSize: 26, fontWeight: 900, color: boja, lineHeight: 1, textShadow: `0 0 15px ${boja}60` }}>{days}</span>
-          <span style={{ fontSize: 9, color: "#444", textTransform: "uppercase", letterSpacing: 1 }}>dana</span>
+          <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>dana</span>
         </div>
         <div>
-          <p style={{ fontSize: 14, color: "white", margin: "0 0 4px 0" }}>
+          <p style={{ fontSize: 14, color: "var(--text-primary)", margin: "0 0 4px 0" }}>
             Preostalo <span style={{ color: boja, fontWeight: 700 }}>{days} {days === 1 ? "dan" : "dana"}</span> za uplatu poreza i doprinosa.
           </p>
-          <p style={{ fontSize: 12, color: "#444", margin: 0 }}>Rok plaćanja: 15. u mesecu</p>
+          <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>Rok plaćanja: 15. u mesecu</p>
         </div>
       </div>
       {onOpenQRModal && (
         <button
           onClick={onOpenQRModal}
-          style={{ width: "100%", background: "#0a1a10", border: "1px solid #00ffb330", borderRadius: 10, padding: "11px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+          style={{ width: "100%", background: "var(--accent-dim)", border: "1px solid var(--accent)", borderRadius: 10, padding: "11px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
         >
           Otvori QR kodove za plaćanje →
         </button>
@@ -181,8 +181,8 @@ function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
 const CustomTooltip = ({ active, payload, label: l }: any) => {
   if (active && payload && payload.length) {
     return (
-      <div style={{ background: "#0d1117", border: "1px solid #1a2040", borderRadius: 8, padding: "8px 12px" }}>
-        <p style={{ color: "#555", fontSize: 11, margin: "0 0 4px 0" }}>{l}</p>
+      <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 8, padding: "8px 12px" }}>
+        <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "0 0 4px 0" }}>{l}</p>
         <p style={{ color: ACCENT, fontWeight: 700, fontSize: 13, margin: 0 }}>{formatBroj(payload[0].value)} RSD</p>
       </div>
     );
@@ -204,13 +204,13 @@ function MiniChart({ fakture }: { fakture: KPOFaktura[] }) {
   })), [fakture, currentYear]);
 
   return (
-    <div style={card}>
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
       <p style={labelStyle}>📊 PRIHODI {currentYear}.</p>
       <div style={{ height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={14} margin={{ top: 4, right: 0, left: -28, bottom: 0 }}>
-            <XAxis dataKey="mes" tick={{ fill: "#444", fontSize: 10 }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fill: "#333", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
+            <XAxis dataKey="mes" tick={{ fill: "var(--text-muted)", fontSize: 10 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: "var(--text-muted)", fontSize: 9 }} axisLine={false} tickLine={false} tickFormatter={(v: number) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)} />
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(255,255,255,0.03)" }} />
             <Bar dataKey="iznos" radius={[4, 4, 0, 0]}>
               {data.map((_, i) => (
@@ -224,7 +224,7 @@ function MiniChart({ fakture }: { fakture: KPOFaktura[] }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p style={{ color: "#333", fontSize: 11, margin: "8px 0 0 0", textAlign: "center" }}>
+      <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "8px 0 0 0", textAlign: "center" }}>
         Svetlo zeleno = tekući mesec
       </p>
     </div>
@@ -246,11 +246,11 @@ function TestSamostalnosti() {
   }
 
   return (
-    <div style={card}>
+    <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div>
           <p style={labelStyle}>⚖️ TEST SAMOSTALNOSTI</p>
-          <p style={{ fontSize: 15, fontWeight: 700, color: "white", margin: "0 0 4px 0" }}>Proveri rizik</p>
+          <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px 0" }}>Proveri rizik</p>
           {answered > 0 && (
             <p style={{ fontSize: 12, color: rizican ? "#ff6b6b" : ACCENT, margin: 0, fontWeight: 700 }}>
               {rizican ? `⚠️ Visok rizik (${daCount}/9)` : `✓ Nizak rizik (${daCount}/9)`}
@@ -259,7 +259,7 @@ function TestSamostalnosti() {
         </div>
         <button
           onClick={() => setOpen(p => !p)}
-          style={{ background: "#0a1a10", border: "1px solid #00ffb330", borderRadius: 10, padding: "10px 16px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+          style={{ background: "var(--accent-dim)", border: "1px solid var(--accent)", borderRadius: 10, padding: "10px 16px", color: ACCENT, fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
         >
           {open ? "Zatvori" : "Pokreni test"}
         </button>
@@ -268,8 +268,8 @@ function TestSamostalnosti() {
       {open && (
         <div style={{ marginTop: 16 }}>
           {TEST_PITANJA.map((p, i) => (
-            <div key={i} style={{ background: "#111", border: "1px solid #1a2040", borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
-              <p style={{ fontSize: 13, color: "white", margin: "0 0 10px 0", fontWeight: 500 }}>
+            <div key={i} style={{ background: "var(--bg-primary)", border: "1px solid var(--border)", borderRadius: 12, padding: "14px 16px", marginBottom: 8 }}>
+              <p style={{ fontSize: 13, color: "var(--text-primary)", margin: "0 0 10px 0", fontWeight: 500 }}>
                 {i + 1}. {p.pitanje}
               </p>
               <div style={{ display: "flex", gap: 8, marginBottom: odgovori[i] === true ? 8 : 0 }}>
@@ -282,9 +282,9 @@ function TestSamostalnosti() {
                       onClick={() => toggle(i, val)}
                       style={{
                         padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
-                        background: active ? (val ? "#2a0a0a" : "#0a1a10") : "#0d1117",
-                        border: active ? `1px solid ${val ? "#ff4d4d60" : "#00ffb340"}` : "1px solid #1a2040",
-                        color: active ? (val ? "#ff6b6b" : ACCENT) : "#444",
+                        background: active ? (val ? "#2a0a0a" : "var(--accent-dim)") : "var(--bg-card)",
+                        border: active ? `1px solid ${val ? "#ff4d4d60" : "#00ffb340"}` : "1px solid var(--border)",
+                        color: active ? (val ? "#ff6b6b" : ACCENT) : "var(--text-muted)",
                       }}
                     >
                       {labelBtn}
@@ -302,7 +302,7 @@ function TestSamostalnosti() {
           {answered === 9 && (
             <div style={{
               borderRadius: 12, padding: "16px", textAlign: "center", fontSize: 13, fontWeight: 700,
-              background: rizican ? "#2a0a0a" : "#0a1a10",
+              background: rizican ? "#2a0a0a" : "var(--accent-dim)",
               border: `1px solid ${rizican ? "#ff4d4d40" : "#00ffb330"}`,
               color: rizican ? "#ff6b6b" : ACCENT,
             }}>
@@ -334,7 +334,7 @@ export default function SmartInsights({ onOpenQRModal }: SmartInsightsProps) {
     <div style={{ marginTop: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
         <div style={{ width: 3, height: 18, borderRadius: 2, background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }} />
-        <p style={{ color: "#555", fontSize: 11, margin: 0, letterSpacing: 1 }}>SMART INSIGHTS</p>
+        <p style={{ color: "var(--text-muted)", fontSize: 11, margin: 0, letterSpacing: 1 }}>SMART INSIGHTS</p>
       </div>
       <BurnRatePanel fakture={fakture} />
       <TaxCountdown onOpenQRModal={onOpenQRModal} />

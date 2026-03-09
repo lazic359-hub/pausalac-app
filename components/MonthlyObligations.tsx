@@ -47,10 +47,10 @@ export default function MonthlyObligations() {
   }, [])
 
   if (!profil) return (
-    <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginTop: 16 }}>
-      <p style={{ color: '#555', fontSize: 11, margin: '0 0 12px 0' }}>MESEČNE OBAVEZE</p>
+    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginTop: 16 }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>MESEČNE OBAVEZE</p>
       <div style={{ textAlign: 'center', padding: '20px 0' }}>
-        <p style={{ color: '#333', fontSize: 13 }}>Unesi podatke u <a href="/settings" style={{ color: '#00ffb3' }}>Podešavanjima</a> da vidiš mesečne obaveze</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Unesi podatke u <a href="/settings" style={{ color: '#00ffb3' }}>Podešavanjima</a> da vidiš mesečne obaveze</p>
       </div>
     </div>
   )
@@ -59,9 +59,9 @@ export default function MonthlyObligations() {
 
   return (
     <>
-      <div style={{ background: '#0d1117', border: '1px solid #1a2040', borderRadius: 16, padding: 24, marginTop: 16 }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginTop: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <p style={{ color: '#555', fontSize: 11, margin: 0 }}>MESEČNE OBAVEZE</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>MESEČNE OBAVEZE</p>
           <span style={{ color: '#f59e0b', fontWeight: 700, fontSize: 14 }}>
             {ukupno.toLocaleString()} RSD
           </span>
@@ -74,13 +74,13 @@ export default function MonthlyObligations() {
               <div
                 key={obaveza.kljuc}
                 style={{
-                  background: '#111',
+                  background: 'var(--bg-primary)',
                   borderRadius: 12,
                   padding: '14px 16px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  border: '1px solid #1a2040',
+                  border: '1px solid var(--border)',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -91,8 +91,8 @@ export default function MonthlyObligations() {
                     flexShrink: 0,
                   }} />
                   <div>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#ddd' }}>{obaveza.naziv}</p>
-                    <p style={{ margin: '2px 0 0 0', fontSize: 11, color: '#444' }}>{obaveza.opis}</p>
+                    <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{obaveza.naziv}</p>
+                    <p style={{ margin: '2px 0 0 0', fontSize: 11, color: 'var(--text-muted)' }}>{obaveza.opis}</p>
                   </div>
                 </div>
 
@@ -138,7 +138,7 @@ export default function MonthlyObligations() {
           <div
             onClick={e => e.stopPropagation()}
             style={{
-              background: '#0d1117',
+              background: 'var(--bg-card)',
               border: `1px solid ${aktivniModal.boja}40`,
               borderRadius: 20,
               padding: 28,
@@ -147,21 +147,19 @@ export default function MonthlyObligations() {
               boxShadow: `0 0 40px ${aktivniModal.boja}20`,
             }}
           >
-            {/* Modal header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20 }}>
               <div>
-                <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: 'white' }}>{aktivniModal.naziv}</p>
-                <p style={{ margin: '4px 0 0 0', fontSize: 12, color: '#444' }}>NBS IPS QR kod za plaćanje</p>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 16, color: 'var(--text-primary)' }}>{aktivniModal.naziv}</p>
+                <p style={{ margin: '4px 0 0 0', fontSize: 12, color: 'var(--text-muted)' }}>NBS IPS QR kod za plaćanje</p>
               </div>
               <button
                 onClick={() => setAktivniModal(null)}
-                style={{ background: 'none', border: 'none', color: '#444', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 22, cursor: 'pointer', lineHeight: 1, padding: '0 4px' }}
               >
                 ×
               </button>
             </div>
 
-            {/* Iznos */}
             <div style={{
               background: `${aktivniModal.boja}10`,
               border: `1px solid ${aktivniModal.boja}30`,
@@ -172,13 +170,12 @@ export default function MonthlyObligations() {
               justifyContent: 'space-between',
               alignItems: 'center',
             }}>
-              <span style={{ color: '#555', fontSize: 12 }}>Iznos za uplatu</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Iznos za uplatu</span>
               <span style={{ color: aktivniModal.boja, fontWeight: 800, fontSize: 20 }}>
                 {(parseFloat(profil[aktivniModal.kljuc] as string) || 0).toLocaleString()} RSD
               </span>
             </div>
 
-            {/* QR kod */}
             <div style={{
               display: 'flex',
               justifyContent: 'center',
@@ -195,20 +192,19 @@ export default function MonthlyObligations() {
               />
             </div>
 
-            <p style={{ color: '#333', fontSize: 11, textAlign: 'center', margin: '0 0 16px 0' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'center', margin: '0 0 16px 0' }}>
               Skeniraj QR kodom u svojoj bankarskoj aplikaciji
             </p>
 
-            {/* Info */}
-            <div style={{ borderTop: '1px solid #1a2040', paddingTop: 16 }}>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
               {[
                 { label: 'Primalac', value: profil.nazivFirme || '-' },
                 { label: 'Račun', value: profil.brojRacuna || '-' },
                 { label: 'Poziv na broj', value: '97-123456789' },
               ].map(item => (
                 <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                  <span style={{ color: '#444', fontSize: 12 }}>{item.label}</span>
-                  <span style={{ color: '#888', fontSize: 12, fontWeight: 500 }}>{item.value}</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{item.label}</span>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500 }}>{item.value}</span>
                 </div>
               ))}
             </div>
