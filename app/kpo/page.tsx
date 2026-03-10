@@ -292,6 +292,11 @@ export default function KpoPage() {
           <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Arhiva i KPO</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => window.location.href = '/rashodi'} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px 14px', color: '#ff6b6b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            💸 Rashodi
+          </button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <ThemeToggle />
           <button
             onClick={preuzmiExcel}

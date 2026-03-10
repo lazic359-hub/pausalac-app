@@ -2,6 +2,11 @@
 import DataManagement from "@/components/DataManagement"
 import { useState, useEffect } from 'react'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { createClient } from '@supabase/supabase-js'
+
+const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 type Profil = {
   nazivFirme: string; pib: string; maticniBroj: string
@@ -50,17 +55,45 @@ export default function SettingsPage() {
   const [profil, setProfil] = useState<Profil>(PRAZAN_PROFIL)
   const [sacuvano, setSacuvano] = useState(false)
   const [greske, setGreske] = useState<string[]>([])
+  const [ucitavanje, setUcitavanje] = useState(true)
 
   useEffect(() => {
-    const saved = localStorage.getItem('pausalac_profil')
-    if (saved) setProfil({ ...PRAZAN_PROFIL, ...JSON.parse(saved) })
+    ucitajPodatke()
   }, [])
+
+  const ucitajPodatke = async () => {
+    setUcitavanje(true)
+    // Ucitaj iz localStorage (naziv firme, pib, racun itd.)
+    const saved = localStorage.getItem('pausalac_profil')
+    if (saved) {
+      setProfil({ ...PRAZAN_PROFIL, ...JSON.parse(saved) })
+    }
+    // Ucitaj poreske podatke iz Supabase
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const { data } = await supabase
+        .from('profiles')
+        .select('tax_amount, pio_amount, health_amount, unemployment_amount')
+        .eq('user_id', user.id)
+        .single()
+      if (data) {
+        setProfil(p => ({
+          ...p,
+          mesecniPorez: data.tax_amount ? String(data.tax_amount) : p.mesecniPorez,
+          mesecniPio: data.pio_amount ? String(data.pio_amount) : p.mesecniPio,
+          mesecniZdravstvo: data.health_amount ? String(data.health_amount) : p.mesecniZdravstvo,
+          mesecniNezaposlenost: data.unemployment_amount ? String(data.unemployment_amount) : p.mesecniNezaposlenost,
+        }))
+      }
+    }
+    setUcitavanje(false)
+  }
 
   const ocisti = (key: string) => setGreske(g => g.filter(x => x !== key))
   const set = (key: keyof Profil) => (v: string) => { setProfil(p => ({ ...p, [key]: v })); ocisti(key) }
   const ima = (key: string) => greske.includes(key)
 
-  const sacuvaj = () => {
+  const sacuvaj = async () => {
     const nova: string[] = []
     if (!profil.nazivFirme) nova.push('nazivFirme')
     if (!profil.pib) nova.push('pib')
@@ -71,10 +104,33 @@ export default function SettingsPage() {
     if (!profil.brojRacuna) nova.push('brojRacuna')
     setGreske(nova)
     if (nova.length > 0) return
+
+    // Sacuvaj ostale podatke u localStorage
     localStorage.setItem('pausalac_profil', JSON.stringify(profil))
+
+    // Sacuvaj poreske podatke u Supabase
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      await supabase
+        .from('profiles')
+        .upsert({
+          user_id: user.id,
+          tax_amount: parseInt(profil.mesecniPorez) || 0,
+          pio_amount: parseInt(profil.mesecniPio) || 0,
+          health_amount: parseInt(profil.mesecniZdravstvo) || 0,
+          unemployment_amount: parseInt(profil.mesecniNezaposlenost) || 0,
+        }, { onConflict: 'user_id' })
+    }
+
     setSacuvano(true)
     setTimeout(() => setSacuvano(false), 2000)
   }
+
+  if (ucitavanje) return (
+    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <span style={{ color: 'var(--accent)', fontSize: 14 }}>Učitavanje...</span>
+    </div>
+  )
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
@@ -165,19 +221,10 @@ export default function SettingsPage() {
           </p>
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>IBAN</p>
-          <Input
-            value={profil.iban || ''}
-            onChange={set('iban')}
-            placeholder="RS35 1234 0000 0123 4567 89"
-            style={{ marginBottom: 14 }}
-          />
+          <Input value={profil.iban || ''} onChange={set('iban')} placeholder="RS35 1234 0000 0123 4567 89" style={{ marginBottom: 14 }} />
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>SWIFT / BIC KOD</p>
-          <Input
-            value={profil.swift || ''}
-            onChange={set('swift')}
-            placeholder="npr. AABASRB"
-          />
+          <Input value={profil.swift || ''} onChange={set('swift')} placeholder="npr. AABASRB" />
 
           <div style={{ marginTop: 12, background: 'var(--accent-dim)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, lineHeight: 1.6 }}>

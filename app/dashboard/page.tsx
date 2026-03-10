@@ -27,6 +27,7 @@ type Faktura = {
 
 const KURSEVI = { RSD: 1, EUR: 117, USD: 108 }
 const LIMIT = 6000000
+const LIMIT_365 = 8000000
 
 // ─────────────────────────────────────────────
 // LOGIN
@@ -232,7 +233,6 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
 </style>
 </head>
 <body>
-
 <div class="header">
   <div>
     <div class="logo">💼 Paušalac</div>
@@ -243,7 +243,6 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
     <div>Generisano: ${new Date().toLocaleDateString('sr-RS')}</div>
   </div>
 </div>
-
 <div class="grid">
   <div class="card">
     <div class="card-label">Ukupni prihod</div>
@@ -263,7 +262,6 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
     <div class="card-sub">u ${godina}. godini</div>
   </div>
 </div>
-
 <div class="obaveze">
   <div class="section-title">Obaveze prema državi</div>
   <div class="obaveza-red"><span>Porez na prihod (10%)</span><span>${porez.toLocaleString()} RSD</span></div>
@@ -271,7 +269,6 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
   <div class="obaveza-red"><span>Zdravstveno (10.3%)</span><span>${zdravstvo.toLocaleString()} RSD</span></div>
   <div class="obaveza-red"><span>Ukupne obaveze</span><span>${(porez+pio+zdravstvo).toLocaleString()} RSD</span></div>
 </div>
-
 <div class="section-title">Pregled faktura</div>
 <table>
   <thead>
@@ -279,9 +276,7 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
   </thead>
   <tbody>${redovi}</tbody>
 </table>
-
 <div class="footer">Paušalac · Evidencija prihoda za preduzetnike paušalce u Srbiji</div>
-
 </body>
 </html>`
 
@@ -289,9 +284,7 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
   const url = URL.createObjectURL(blob)
   const win = window.open(url, '_blank')
   if (win) {
-    win.onload = () => {
-      win.print()
-    }
+    win.onload = () => { win.print() }
   }
 }
 
@@ -308,6 +301,12 @@ export default function Home() {
   const [kursPrikaz, setKursPrikaz] = useState('')
   const [tab, setTab] = useState<'dashboard' | 'dodaj' | 'fakture' | 'settings'>('dashboard')
   const [godina, setGodina] = useState(new Date().getFullYear().toString())
+  const [poresniPodaci, setPoresniPodaci] = useState<{
+    tax_amount: number | null
+    pio_amount: number | null
+    health_amount: number | null
+    unemployment_amount: number | null
+  } | null>(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -321,7 +320,10 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
-    if (user) fetchFakture()
+    if (user) {
+      fetchFakture()
+      fetchPoresniPodaci()
+    }
   }, [user, godina])
 
   useEffect(() => {
@@ -348,6 +350,15 @@ export default function Home() {
     fetchKurs()
   }, [forma.datum, forma.iznos, forma.valuta])
 
+  const fetchPoresniPodaci = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('tax_amount, pio_amount, health_amount, unemployment_amount')
+      .eq('user_id', user!.id)
+      .single()
+    if (data) setPoresniPodaci(data)
+  }
+
   const fetchFakture = async () => {
     setLoading(true)
     const { data, error } = await supabase
@@ -370,6 +381,13 @@ export default function Home() {
   const zdravstvo = Math.round(ukupnoRSD * 0.103)
   const ukupanPorez = porez + pio + zdravstvo
   const neto = ukupnoRSD - ukupanPorez
+  const bojaBar = procenat > 90 ? '#ff4d4d' : procenat > 70 ? '#ffcc00' : '#00ffb3'
+
+  const pre365 = new Date()
+  pre365.setDate(pre365.getDate() - 365)
+  const prihod365 = fakture.filter(f => new Date(f.datum) >= pre365).reduce((s, f) => s + f.iznos_rsd, 0)
+  const procenat365 = Math.min((ukupnoRSD / LIMIT_365) * 100, 100)
+  const bojaBar365 = procenat365 > 90 ? '#ff4d4d' : procenat365 > 70 ? '#ffcc00' : '#00ffb3'
 
   const dodajFakturu = async () => {
     if (!forma.klijent || !forma.iznos || !user) return
@@ -406,18 +424,12 @@ export default function Home() {
     if (!error) setFakture(fakture.filter(f => f.id !== id))
   }
 
-  const bojaBar = procenat > 90 ? '#ff4d4d' : procenat > 70 ? '#ffcc00' : '#00ffb3'
-
   const godinaOptions = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString())
 
   useEffect(() => {
-    const hash = window.location.hash
-    if (hash.includes('type=recovery')) {
-      // korisnik je kliknuo reset link iz emaila
-    }
     supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
-        // ovde ne radimo nista, LoginPage ce prikazati novaLozinka ekran
+        // LoginPage ce prikazati novaLozinka ekran
       }
     })
   }, [])
@@ -481,17 +493,34 @@ export default function Home() {
                 </button>
               </div>
 
-              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 8, overflow: 'hidden' }}>
+              {/* 6M bar */}
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>LIMIT KALENDARSKE GODINE (6.000.000 RSD)</p>
+              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 6, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${procenat}%`, background: bojaBar, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar}`, transition: 'width 0.5s ease' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
-                <span>{procenat.toFixed(1)}% od limita</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>
+                <span style={{ color: bojaBar }}>{ukupnoRSD.toLocaleString()} RSD ({procenat.toFixed(1)}%)</span>
                 <span>6.000.000 RSD</span>
+              </div>
+
+              {/* 8M / 365 dana bar */}
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>LIMIT 365 DANA (8.000.000 RSD)</p>
+              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 6, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${procenat365}%`, background: bojaBar365, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar365}`, transition: 'width 0.5s ease' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+                <span style={{ color: bojaBar365 }}>{prihod365.toLocaleString()} RSD ({procenat365.toFixed(1)}%)</span>
+                <span>8.000.000 RSD</span>
               </div>
 
               {procenat > 80 && (
                 <div style={{ background: '#2a0a0a', border: '1px solid #ff4d4d40', borderRadius: 8, padding: '10px 14px', marginTop: 12 }}>
                   <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>⚠️ Prešli ste {procenat.toFixed(0)}% godišnjeg limita!</p>
+                </div>
+              )}
+              {procenat365 > 80 && (
+                <div style={{ background: '#2a0a0a', border: '1px solid #ff4d4d40', borderRadius: 8, padding: '10px 14px', marginTop: 8 }}>
+                  <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>⚠️ Prešli ste {procenat365.toFixed(0)}% limita za 365 dana!</p>
                 </div>
               )}
             </div>
@@ -513,24 +542,54 @@ export default function Home() {
               ))}
             </div>
 
-            {/* Obaveze prema državi */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20 }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE PREMA DRŽAVI</p>
-              {[
-                { label: 'Porez na prihod', value: porez, procenat: '10%', boja: '#f59e0b' },
-                { label: 'PIO doprinos', value: pio, procenat: '24%', boja: '#3b82f6' },
-                { label: 'Zdravstveno', value: zdravstvo, procenat: '10.3%', boja: '#a855f7' },
-              ].map(item => (
-                <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.boja, boxShadow: `0 0 6px ${item.boja}` }} />
-                    <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>{item.label}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{item.procenat}</span>
-                  </div>
-                  <span style={{ color: item.boja, fontWeight: 700, fontSize: 15 }}>{item.value.toLocaleString()} RSD</span>
+            {/* Obaveze iz poreskog rešenja */}
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE IZ PORESKOG REŠENJA</p>
+              {!poresniPodaci || (!poresniPodaci.tax_amount && !poresniPodaci.pio_amount && !poresniPodaci.health_amount && !poresniPodaci.unemployment_amount) ? (
+                <div style={{ textAlign: 'center', padding: '16px 0' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 12px 0' }}>
+                    📋 Unesi svoje obaveze iz poreskog rešenja u Podešavanjima profila
+                  </p>
+                  <a href="/settings" style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 13, padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}>
+                    Otvori podešavanja →
+                  </a>
                 </div>
-              ))}
+              ) : (() => {
+                const t = poresniPodaci.tax_amount || 0
+                const p = poresniPodaci.pio_amount || 0
+                const h = poresniPodaci.health_amount || 0
+                const u = poresniPodaci.unemployment_amount || 0
+                const ukupnoMesecno = t + p + h + u
+                return (
+                  <>
+                    {[
+                      { label: 'Porez na prihod', value: t, boja: '#f59e0b' },
+                      { label: 'PIO doprinos', value: p, boja: '#3b82f6' },
+                      { label: 'Zdravstveno osiguranje', value: h, boja: '#a855f7' },
+                      { label: 'Osiguranje za nezaposlene', value: u, boja: '#ec4899' },
+                    ].map(item => (
+                      <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.boja, boxShadow: `0 0 6px ${item.boja}` }} />
+                          <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>{item.label}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>mesečno</span>
+                        </div>
+                        <span style={{ color: item.boja, fontWeight: 700, fontSize: 15 }}>{item.value.toLocaleString()} RSD</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 4px 0' }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14 }}>UKUPNO MESEČNO</span>
+                      <span style={{ color: '#00ffb3', fontWeight: 800, fontSize: 16 }}>{ukupnoMesecno.toLocaleString()} RSD</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>UKUPNO GODIŠNJE</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: 14 }}>{(ukupnoMesecno * 12).toLocaleString()} RSD</span>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
+
             <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT} />
             <MonthlyObligations />
             <SmartInsights onOpenQRModal={() => {}} />
