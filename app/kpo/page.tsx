@@ -1,14 +1,24 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { createClient, User } from '@supabase/supabase-js'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import jsPDF from 'jspdf'
 
-type KpoUnos = {
+const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+type Valuta = 'RSD' | 'EUR' | 'USD'
+
+type Prihod = {
+  id: string
+  user_id?: string
   datum: string
   klijent: string
+  napomena: string | null
   iznos: number
-  brojFakture: string
-  nacinPlacanja?: string
+  valuta: Valuta
+  iznos_rsd: number
 }
 
 const KVARTALI = {
@@ -19,74 +29,81 @@ const KVARTALI = {
 }
 
 export default function KpoPage() {
-  const [fakture, setFakture] = useState<KpoUnos[]>([])
+  const [user, setUser] = useState<User | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [prihodi, setPrihodi] = useState<Prihod[]>([])
+  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'sve' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('sve')
   const [selectedGodina, setSelectedGodina] = useState<number>(new Date().getFullYear())
-  const [brisanje, setBrisanje] = useState<number | null>(null)
-  const [undoStavka, setUndoStavka] = useState<{ stavka: KpoUnos; index: number } | null>(null)
-  const [undoTimer, setUndoTimer] = useState<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
-    ucitaj()
+    const init = async () => {
+      const { data: { user: u } } = await supabase.auth.getUser()
+      setUser(u)
+      setAuthLoading(false)
+      if (u) ucitajPrihode(u.id)
+    }
+    init()
   }, [])
 
-  const ucitaj = () => {
-    const saved = localStorage.getItem('kpo_knjiga')
-    if (saved) {
-      const lista: KpoUnos[] = JSON.parse(saved)
-      lista.sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime())
-      setFakture(lista)
-    }
+  // Refetch when page gains focus so KPO stays in sync with Dashboard '+ Prihod' entries
+  useEffect(() => {
+    if (!user) return
+    const onFocus = () => ucitajPrihode(user.id)
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [user])
+
+  const ucitajPrihode = async (userId: string) => {
+    setLoading(true)
+    const { data, error } = await supabase
+      .from('prihodi')
+      .select('*')
+      .eq('user_id', userId)
+      .order('datum', { ascending: true })
+    if (!error && data) setPrihodi((data as Prihod[]) || [])
+    setLoading(false)
   }
 
-  const filtriranePoGodini = fakture.filter(f =>
-    new Date(f.datum).getFullYear() === selectedGodina
+  const filtriranePoGodini = prihodi.filter(p =>
+    new Date(p.datum).getFullYear() === selectedGodina
   )
 
-  const filtrirane = filtriranePoGodini.filter(f => {
+  // Redni broj is year-wide (1, 2, 3...) for the selected year, per Serbian KPO rules
+  const sortiranePoGodini = [...filtriranePoGodini].sort(
+    (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
+  )
+  const redniBrojMap = new Map<string, number>()
+  sortiranePoGodini.forEach((p, i) => redniBrojMap.set(p.id, i + 1))
+
+  const filtrirane = filtriranePoGodini.filter(p => {
     if (filter === 'sve') return true
-    const mes = f.datum.split('-')[1]
+    const mes = p.datum.split('-')[1]
     return KVARTALI[filter].includes(mes)
   })
 
-  const filtriranesBrojevima = filtrirane.map((f, i) => ({
-    ...f,
-    redniBroj: i + 1
+  const filtriranesBrojevima = filtrirane.map(p => ({
+    ...p,
+    redniBroj: redniBrojMap.get(p.id) ?? 0,
   }))
 
-  const ukupno = filtrirane.reduce((sum, f) => sum + f.iznos, 0)
-  const ukupnoSve = filtriranePoGodini.reduce((sum, f) => sum + f.iznos, 0)
+  // Samostalnost: client share of total in current filtered view (>70% = orange row)
+  const iznosPoKlijentu = new Map<string, number>()
+  filtrirane.forEach(p => {
+    iznosPoKlijentu.set(p.klijent, (iznosPoKlijentu.get(p.klijent) ?? 0) + (p.iznos_rsd ?? 0))
+  })
+  const isOver70 = (klijent: string) =>
+    ukupnoFilter > 0 && ((iznosPoKlijentu.get(klijent) ?? 0) / ukupnoFilter) > 0.7
 
-  const potvrdiDrisanje = (index: number) => {
-    setBrisanje(index)
+  // Parse NBS kurs from napomena (e.g. " [Kurs 1 EUR = 117 RSD]" or " [Kurs 1 USD = 108 RSD]")
+  const parseKursIzNapomene = (napomena: string | null): string | null => {
+    if (!napomena) return null
+    const m = napomena.match(/Kurs 1 (?:EUR|USD) = ([\d.,]+)\s*RSD/i)
+    return m ? m[1].replace(',', '.') : null
   }
 
-  const obrisi = (index: number) => {
-    const stavka = filtrirane[index]
-    const globalIndex = fakture.findIndex(
-      f => f.datum === stavka.datum && f.klijent === stavka.klijent && f.iznos === stavka.iznos
-    )
-    const novaLista = [...fakture]
-    novaLista.splice(globalIndex, 1)
-    setFakture(novaLista)
-    localStorage.setItem('kpo_knjiga', JSON.stringify(novaLista))
-    setBrisanje(null)
-    setUndoStavka({ stavka, index: globalIndex })
-    if (undoTimer) clearTimeout(undoTimer)
-    const t = setTimeout(() => setUndoStavka(null), 5000)
-    setUndoTimer(t)
-  }
-
-  const undo = () => {
-    if (!undoStavka) return
-    const novaLista = [...fakture]
-    novaLista.splice(undoStavka.index, 0, undoStavka.stavka)
-    novaLista.sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime())
-    setFakture(novaLista)
-    localStorage.setItem('kpo_knjiga', JSON.stringify(novaLista))
-    setUndoStavka(null)
-    if (undoTimer) clearTimeout(undoTimer)
-  }
+  const ukupnoRSD = filtriranePoGodini.reduce((sum, p) => sum + (p.iznos_rsd ?? 0), 0)
+  const ukupnoFilter = filtrirane.reduce((sum, p) => sum + (p.iznos_rsd ?? 0), 0)
 
   const formatDatum = (d: string) => {
     const [god, mes, dan] = d.split('-')
@@ -96,22 +113,44 @@ export default function KpoPage() {
   const formatIznos = (iznos: number) =>
     new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos)
 
+  const iznosOriginal = (p: Prihod) => {
+    if (p.valuta === 'RSD') return formatIznos(p.iznos) + ' RSD'
+    return formatIznos(p.iznos) + ' ' + (p.valuta || 'EUR')
+  }
+
+  // Opis: Račun br. [broj]/[godina] - [Ime Klijenta]
+  const formatOpis = (p: { redniBroj: number; klijent: string }) =>
+    `Račun br. ${p.redniBroj}/${selectedGodina} - ${p.klijent}`
+
+  const nbsTooltipText = (p: Prihod & { redniBroj: number }) => {
+    const kursStr = parseKursIzNapomene(p.napomena)
+    if (p.valuta === 'RSD') return 'Iznos u RSD (bez konverzije)'
+    if (kursStr) return `Srednji kurs NBS na dan ${formatDatum(p.datum)}: ${parseFloat(kursStr).toFixed(2)}`
+    return `Srednji kurs NBS (vidi napomenu)`
+  }
+
   const preuzmiPDF = async () => {
     const doc = new jsPDF()
+    const pageWidth = doc.internal.pageSize.getWidth()
+    const pageHeight = doc.internal.pageSize.getHeight()
     const ukupnoStrana = () => (doc as any).internal.getNumberOfPages()
     const sada = new Date().toLocaleString('sr-RS')
 
-    const ascii = (t: string) => t
+    // 15mm margins (jsPDF default unit is mm)
+    const margin = 15
+    const contentWidth = pageWidth - margin * 2
+
+    const ascii = (t: string) => (t || '')
       .replace(/[čć]/g, 'c').replace(/[ČĆ]/g, 'C')
       .replace(/[š]/g, 's').replace(/[Š]/g, 'S')
       .replace(/[ž]/g, 'z').replace(/[Ž]/g, 'Z')
       .replace(/[đ]/g, 'dj').replace(/[Đ]/g, 'Dj')
 
-    const profilRaw = localStorage.getItem('pausalac_profil')
+    const profilRaw = typeof window !== 'undefined' ? localStorage.getItem('pausalac_profil') : null
     const profil = profilRaw ? JSON.parse(profilRaw) : {}
-    const nazivFirme = ascii(profil.nazivFirme || '')
-    const pib = profil.pib || ''
-    const maticniBroj = profil.maticniBroj || ''
+    const nazivFirme = (profil.nazivFirme && String(profil.nazivFirme).trim()) ? ascii(profil.nazivFirme) : '________________'
+    const pib = (profil.pib != null && String(profil.pib).trim() !== '') ? String(profil.pib) : '________________'
+    const adresa = ascii(profil.sediste || 'Adresa')
 
     const formatIznosPDF = (iznos: number) =>
       new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos) + ' RSD'
@@ -120,112 +159,146 @@ export default function KpoPage() {
       (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
     )
 
+    // Table column layout (mm): Red. br. (narrow) | Datum (standard) | Opis (wide) | Iznos RSD (standard)
+    const colW1 = 12
+    const colW2 = 22
+    const colW4 = 28
+    const colW3 = contentWidth - colW1 - colW2 - colW4
+    const x1 = margin
+    const x2 = margin + colW1
+    const x3 = margin + colW1 + colW2
+    const x4 = margin + colW1 + colW2 + colW3
+    const rowHeightHeader = 8
+    const lineHeight = 5
+    const cellPadding = 2
+
     const dodajFooter = () => {
       const ukupno = ukupnoStrana()
       for (let i = 1; i <= ukupno; i++) {
         doc.setPage(i)
         doc.setFontSize(8)
         doc.setTextColor(150, 150, 150)
-        doc.text(`Generisano: ${sada}`, 14, 290)
-        doc.text(`Stranica ${i} od ${ukupno}`, 196, 290, { align: 'right' })
+        doc.text(`Generisano: ${sada}`, margin, pageHeight - 10)
+        doc.text(`Stranica ${i} od ${ukupno}`, pageWidth - margin, pageHeight - 10, { align: 'right' })
       }
     }
 
-    doc.setFontSize(11)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text(nazivFirme, 14, 14)
+    // Helper: draw thin black border for one row (full width of table)
+    const drawRowBorders = (y: number, h: number) => {
+      doc.setDrawColor(0, 0, 0)
+      doc.line(x1, y, x1 + contentWidth, y)
+      doc.line(x1, y + h, x1 + contentWidth, y + h)
+      doc.line(x1, y, x1, y + h)
+      doc.line(x2, y, x2, y + h)
+      doc.line(x3, y, x3, y + h)
+      doc.line(x4, y, x4, y + h)
+      doc.line(x4 + colW4, y, x4 + colW4, y + h)
+    }
 
-    doc.setFontSize(8)
+    // ——— Top-left: Firma, PIB, Adresa ———
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 100, 100)
-    if (pib) doc.text(`PIB: ${pib}`, 14, 20)
-    if (maticniBroj) doc.text(`Maticni broj: ${maticniBroj}`, 14, 25)
-
-    doc.setDrawColor(200, 200, 200)
-    doc.line(14, 29, 196, 29)
-
-    doc.setFontSize(14)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    doc.text(`KPO Knjiga — ${selectedGodina}`, 14, 38)
-
-    doc.setFontSize(9)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(100, 100, 100)
-    doc.text(`Period: ${filter !== 'sve' ? filter : 'Cela godina'}`, 14, 44)
-    doc.text(`Ukupno: ${formatIznosPDF(ukupno)}`, 14, 49)
-
-    const tableTop = 55
-    doc.setFontSize(9)
-    doc.setTextColor(0, 0, 0)
-    doc.setFillColor(220, 220, 220)
-    doc.rect(14, tableTop, 182, 8, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.text('BR.', 16, tableTop + 5.5)
-    doc.text('DATUM', 28, tableTop + 5.5)
-    doc.text('KUPAC', 65, tableTop + 5.5)
-    doc.text('BR. FAKTURE', 112, tableTop + 5.5)
-    doc.text('PLACANJE', 150, tableTop + 5.5)
-    doc.text('IZNOS (RSD)', 175, tableTop + 5.5)
-    doc.setFont('helvetica', 'normal')
-
-    let y = tableTop + 12
-
-    sortirane.forEach((f, i) => {
-      if (y > 275) {
-        doc.addPage()
-        doc.setFillColor(220, 220, 220)
-        doc.rect(14, 14, 182, 8, 'F')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(9)
-        doc.text('BR.', 16, 19.5)
-        doc.text('DATUM', 28, 19.5)
-        doc.text('KUPAC', 65, 19.5)
-        doc.text('BR. FAKTURE', 112, 19.5)
-        doc.text('PLACANJE', 150, 19.5)
-        doc.text('IZNOS (RSD)', 175, 19.5)
-        doc.setFont('helvetica', 'normal')
-        y = 28
-      }
-
-      doc.setTextColor(0, 0, 0)
-      doc.setFontSize(9)
-      doc.text(String(i + 1), 16, y)
-      doc.text(formatDatum(f.datum), 28, y)
-      doc.text(ascii(f.klijent).substring(0, 35), 65, y)
-      doc.text(f.brojFakture || '-', 112, y)
-      const placanje = (f.nacinPlacanja || 'Prenos').replace('Prenos na račun', 'Prenos').replace('Gotovina', 'Gotovina').replace('Kartica', 'Kartica')
-      doc.text(placanje, 150, y)
-      doc.text(formatIznosPDF(f.iznos), 196, y, { align: 'right' })
-      doc.setDrawColor(220, 220, 220)
-      doc.line(14, y + 2.5, 196, y + 2.5)
-      y += 9
-    })
-
-    doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(0, 0, 0)
-    doc.text(`UKUPNO: ${formatIznosPDF(ukupno)}`, 196, y + 8, { align: 'right' })
+    doc.text('Firma: ' + nazivFirme, x1, margin + 5)
+    doc.text('PIB: ' + pib, x1, margin + 10)
+    doc.text('Adresa: ' + adresa, x1, margin + 15)
 
-    const sediste = profil.sediste ? `U ${ascii(profil.sediste)}` : 'U ______'
-    const d = new Date()
-    const datumDanas = `${String(d.getDate()).padStart(2,'0')}.${String(d.getMonth()+1).padStart(2,'0')}.${d.getFullYear()}`
-    const ukupnoStr = ukupnoStrana()
-    for (let i = 1; i <= ukupnoStr; i++) {
-      doc.setPage(i)
-      if (i === ukupnoStr) {
-        doc.setFontSize(9)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(80, 80, 80)
-        doc.text(`${sediste}, dana ${datumDanas}`, 14, 272)
+    // ——— Top-right: Godina ———
+    doc.text('Godina: ' + selectedGodina + '.', pageWidth - margin, margin + 10, { align: 'right' })
+
+    // ——— Title: centered, bold, underlined ———
+    const title = 'KNJIGA O OSTVARENOM PROMETU (OBRAZAC KPO)'
+    doc.setFontSize(12)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(0, 0, 0)
+    const titleY = margin + 28
+    doc.text(title, pageWidth / 2, titleY, { align: 'center' })
+    const titleWidth = doc.getTextWidth(title)
+    doc.setDrawColor(0, 0, 0)
+    doc.line(pageWidth / 2 - titleWidth / 2, titleY + 1.5, pageWidth / 2 + titleWidth / 2, titleY + 1.5)
+
+    // ——— Table header (4 columns, white background, thin black borders) ———
+    const tableTop = titleY + 10
+    doc.setDrawColor(0, 0, 0)
+    doc.rect(x1, tableTop, colW1, rowHeightHeader, 'S')
+    doc.rect(x2, tableTop, colW2, rowHeightHeader, 'S')
+    doc.rect(x3, tableTop, colW3, rowHeightHeader, 'S')
+    doc.rect(x4, tableTop, colW4, rowHeightHeader, 'S')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('Red. br.', x1 + colW1 / 2, tableTop + 5.2, { align: 'center' })
+    doc.text('Datum', x2 + colW2 / 2, tableTop + 5.2, { align: 'center' })
+    doc.text('Opis (Klijent i Broj racuna)', x3 + colW3 / 2, tableTop + 5.2, { align: 'center' })
+    doc.text('Iznos (RSD)', x4 + colW4 / 2, tableTop + 5.2, { align: 'center' })
+    doc.setFont('helvetica', 'normal')
+
+    let y = tableTop + rowHeightHeader
+    const bottomY = pageHeight - 35
+
+    sortirane.forEach((p) => {
+      const rb = redniBrojMap.get(p.id) ?? 0
+      const kursStr = parseKursIzNapomene(p.napomena)
+      const opisText = p.valuta !== 'RSD' && kursStr
+        ? ascii(`Racun br. ${rb}, klijent: ${p.klijent} (Kurs: ${parseFloat(kursStr).toFixed(2)}).`)
+        : ascii(`Racun br. ${rb}, klijent: ${p.klijent}.`)
+      const datumStr = formatDatum(p.datum)
+
+      doc.setFontSize(9)
+      const opisLines = doc.splitTextToSize(opisText, Math.max(colW3 - cellPadding * 2, 10))
+      const numLines = Math.max(1, opisLines.length)
+      const rowH = Math.max(rowHeightHeader, numLines * lineHeight + cellPadding)
+
+      if (y + rowH > bottomY) {
+        doc.addPage()
+        y = margin + rowHeightHeader
         doc.setDrawColor(0, 0, 0)
-        doc.line(130, 278, 196, 278)
-        doc.setFontSize(8)
-        doc.setTextColor(120, 120, 120)
-        doc.text('Potpis odgovornog lica', 163, 283, { align: 'center' })
+        doc.rect(x1, margin, colW1, rowHeightHeader, 'S')
+        doc.rect(x2, margin, colW2, rowHeightHeader, 'S')
+        doc.rect(x3, margin, colW3, rowHeightHeader, 'S')
+        doc.rect(x4, margin, colW4, rowHeightHeader, 'S')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.text('Red. br.', x1 + colW1 / 2, margin + 5.2, { align: 'center' })
+        doc.text('Datum', x2 + colW2 / 2, margin + 5.2, { align: 'center' })
+        doc.text('Opis (Klijent i Broj racuna)', x3 + colW3 / 2, margin + 5.2, { align: 'center' })
+        doc.text('Iznos (RSD)', x4 + colW4 / 2, margin + 5.2, { align: 'center' })
+        doc.setFont('helvetica', 'normal')
+        y = margin + rowHeightHeader
       }
-    }
+
+      drawRowBorders(y, rowH)
+      doc.setTextColor(0, 0, 0)
+      const textBaselineY = y + rowH / 2
+      doc.text(String(rb), x1 + cellPadding, textBaselineY)
+      doc.text(datumStr, x2 + cellPadding, textBaselineY)
+      let lineY = y + cellPadding + 3.5
+      opisLines.forEach((line: string) => {
+        doc.text(line, x3 + cellPadding, lineY)
+        lineY += lineHeight
+      })
+      doc.text(formatIznosPDF(p.iznos_rsd ?? 0), x4 + colW4 - cellPadding, textBaselineY, { align: 'right' })
+      y += rowH
+    })
+
+    // ——— UKUPNO row (bold) ———
+    const ukupnoRowH = 9
+    drawRowBorders(y, ukupnoRowH)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.text('UKUPNO:', x3 + cellPadding, y + ukupnoRowH / 2)
+    doc.text(formatIznosPDF(ukupnoFilter), x4 + colW4 - cellPadding, y + ukupnoRowH / 2, { align: 'right' })
+    doc.setFont('helvetica', 'normal')
+    y += ukupnoRowH + 12
+
+    // ——— Bottom right: M.P. and (Potpis odgovornog lica) ———
+    const lastPage = ukupnoStrana()
+    doc.setPage(lastPage)
+    doc.setFontSize(9)
+    doc.setTextColor(0, 0, 0)
+    doc.text('M.P. _______________________', pageWidth - margin, pageHeight - 22, { align: 'right' })
+    doc.setFontSize(8)
+    doc.setTextColor(80, 80, 80)
+    doc.text('(Potpis odgovornog lica)', pageWidth - margin, pageHeight - 16, { align: 'right' })
 
     dodajFooter()
     doc.save(`KPO-${selectedGodina}-${filter}.pdf`)
@@ -242,34 +315,44 @@ export default function KpoPage() {
       return `${dan}.${mes}.${god}`
     }
 
-    const redovi = sortirane.map((f, i) => ({
-      'BR.': i + 1,
-      'DATUM': formatDatumExcel(f.datum),
-      'KUPAC': f.klijent,
-      'BROJ FAKTURE': f.brojFakture || '-',
-      'NACIN PLACANJA': f.nacinPlacanja || 'Prenos na racun',
-      'IZNOS (RSD)': f.iznos,
+    const redovi = sortirane.map((p) => ({
+      'Red. br.': redniBrojMap.get(p.id) ?? 0,
+      'Datum': formatDatumExcel(p.datum),
+      'Opis': `Račun br. ${redniBrojMap.get(p.id) ?? 0}, ${p.klijent}`,
+      'Iznos orig.': p.valuta === 'RSD' ? `${formatIznos(p.iznos)} RSD` : `${formatIznos(p.iznos)} ${p.valuta || 'EUR'}`,
+      'Iznos (RSD)': p.iznos_rsd ?? 0,
     }))
 
     redovi.push({
-      'BR.': '' as any,
-      'DATUM': '',
-      'KUPAC': 'UKUPNO',
-      'BROJ FAKTURE': '',
-      'NACIN PLACANJA': '',
-      'IZNOS (RSD)': filtrirane.reduce((sum, f) => sum + f.iznos, 0),
-    })
+      'Red. br.': '',
+      'Datum': '',
+      'Opis': 'Total',
+      'Iznos orig.': '',
+      'Iznos (RSD)': ukupnoFilter,
+    } as any)
 
     const ws = XLSX.utils.json_to_sheet(redovi)
 
-    const zaglavlje = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1']
+    const zaglavlje = ['A1', 'B1', 'C1', 'D1', 'E1']
     zaglavlje.forEach(ref => {
-      if (ws[ref]) ws[ref].s = { font: { bold: true } }
+      if (ws[ref]) (ws[ref] as any).s = { font: { bold: true } }
     })
 
+    // Ensure Iznos (RSD) (column E) is raw number so formulas can sum it
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+    for (let r = 1; r <= range.e.r; r++) {
+      const ref = XLSX.utils.encode_cell({ r, c: 4 })
+      const cell = ws[ref]
+      if (cell && typeof cell.v === 'number') {
+        cell.t = 'n'
+        cell.z = '#,##0.00'
+        if (cell.s) (cell.s as any).numFmt = '#,##0.00'
+      }
+    }
+
     ws['!cols'] = [
-      { wch: 5 }, { wch: 12 }, { wch: 30 },
-      { wch: 18 }, { wch: 20 }, { wch: 15 },
+      { wch: 8 }, { wch: 12 }, { wch: 48 },
+      { wch: 18 }, { wch: 16 },
     ]
 
     const wb = XLSX.utils.book_new()
@@ -277,8 +360,29 @@ export default function KpoPage() {
     XLSX.utils.book_append_sheet(wb, ws, `KPO ${selectedGodina}`)
 
     const d = new Date()
-    const datum = `${String(d.getDate()).padStart(2,'0')}-${String(d.getMonth()+1).padStart(2,'0')}-${d.getFullYear()}`
+    const datum = `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`
     XLSX.writeFile(wb, `KPO_Knjiga_${selectedGodina}_${datum}.xlsx`, { cellStyles: true })
+  }
+
+  if (authLoading) {
+    return (
+      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: 32 }}>📒</span>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <p style={{ fontSize: 48, marginBottom: 16 }}>📒</p>
+        <p style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Prijavite se</p>
+        <p style={{ color: 'var(--text-muted)', marginBottom: 24, textAlign: 'center' }}>Da biste videli Knjigu prihoda (KPO), morate biti prijavljeni.</p>
+        <a href="/" style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, padding: '12px 24px', borderRadius: 12, textDecoration: 'none' }}>
+          Nazad na početnu
+        </a>
+      </div>
+    )
   }
 
   return (
@@ -289,12 +393,7 @@ export default function KpoPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>←</button>
           <span style={{ fontSize: 18 }}>📒</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Arhiva i KPO</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button onClick={() => window.location.href = '/rashodi'} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '7px 14px', color: '#ff6b6b', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-            💸 Rashodi
-          </button>
+          <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Arhiva i KPO</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <ThemeToggle />
@@ -306,24 +405,24 @@ export default function KpoPage() {
           </button>
           <button
             onClick={preuzmiPDF}
-            style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
           >
             ⬇️ PDF
           </button>
         </div>
       </div>
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 40px 16px' }}>
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 40px 16px' }}>
 
         {/* Ukupan promet */}
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>UKUPAN PROMET {selectedGodina}.</p>
-            <p style={{ color: '#00ffb3', fontWeight: 800, fontSize: 28, margin: 0 }}>{ukupnoSve.toLocaleString()} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>RSD</span></p>
+            <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>{formatIznos(ukupnoRSD)} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>RSD</span></p>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>BROJ FAKTURA</p>
-            <p style={{ color: '#00ffb3', fontWeight: 800, fontSize: 28, margin: 0 }}>{fakture.length}</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>BROJ PRIHODA</p>
+            <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>{filtriranePoGodini.length}</p>
           </div>
         </div>
 
@@ -335,13 +434,13 @@ export default function KpoPage() {
               key={g}
               onClick={() => setSelectedGodina(g)}
               style={{
-                background: selectedGodina === g ? '#00ffb3' : 'var(--bg-card)',
+                background: selectedGodina === g ? 'var(--accent)' : 'var(--bg-card)',
                 color: selectedGodina === g ? '#000' : 'var(--text-muted)',
                 fontWeight: selectedGodina === g ? 700 : 400,
                 fontSize: 13,
                 padding: '6px 12px',
                 borderRadius: 10,
-                border: `1px solid ${selectedGodina === g ? '#00ffb3' : 'var(--border)'}`,
+                border: `1px solid ${selectedGodina === g ? 'var(--accent)' : 'var(--border)'}`,
                 cursor: 'pointer',
               }}
             >
@@ -358,13 +457,13 @@ export default function KpoPage() {
               onClick={() => setFilter(k)}
               style={{
                 flex: 1,
-                background: filter === k ? '#00ffb3' : 'var(--bg-card)',
+                background: filter === k ? 'var(--accent)' : 'var(--bg-card)',
                 color: filter === k ? '#000' : 'var(--text-muted)',
                 fontWeight: filter === k ? 700 : 400,
                 fontSize: 13,
                 padding: '8px 0',
                 borderRadius: 10,
-                border: `1px solid ${filter === k ? '#00ffb3' : 'var(--border)'}`,
+                border: `1px solid ${filter === k ? 'var(--accent)' : 'var(--border)'}`,
                 cursor: 'pointer',
               }}
             >
@@ -373,72 +472,76 @@ export default function KpoPage() {
           ))}
         </div>
 
-        {/* Undo poruka */}
-        {undoStavka && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--accent)', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Faktura obrisana</p>
-            <button onClick={undo} style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 12, padding: '6px 14px', borderRadius: 8, border: 'none', cursor: 'pointer' }}>
-              ↩ Vrati
-            </button>
-          </div>
-        )}
-
         {/* Tabela */}
-        {filtrirane.length === 0 ? (
+        {loading ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-            <p style={{ fontSize: 40 }}>📒</p>
-            <p>Nema faktura {filter !== 'sve' ? `za ${filter}` : ''}</p>
+            Učitavanje prihoda...
+          </div>
+        ) : filtrirane.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--text-muted)', textAlign: 'center' }}>
+            <p style={{ fontSize: 48, margin: '0 0 12px 0' }}>📋</p>
+            <p style={{ fontSize: 16, margin: 0 }}>Nema prihoda za ovaj period.</p>
           </div>
         ) : (
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
 
             {/* Header tabele */}
-            <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>BR.</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>DATUM</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>KUPAC</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>IZNOS</p>
-              <div />
+            <div style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Red. br.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Datum</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Opis (Račun br. i Klijent)</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>Iznos orig.</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>Iznos RSD</p>
             </div>
 
             {/* Redovi */}
-            {filtriranesBrojevima.map((f, i) => (
-              <div key={i}>
-                {brisanje === i ? (
-                  <div style={{ padding: '14px 16px', background: '#1a0a0a', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>Obrisati ovu fakturu?</p>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setBrisanje(null)} style={{ background: 'var(--bg-card)', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>
-                        Otkaži
-                      </button>
-                      <button onClick={() => obrisi(i)} style={{ background: '#ff4d4d', border: 'none', color: 'white', fontWeight: 700, fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>
-                        Da, obriši
-                      </button>
-                    </div>
+            {filtriranesBrojevima.map((p) => {
+              const over70 = isOver70(p.klijent)
+              return (
+                <div
+                  key={p.id}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '44px 82px 1fr 90px 100px',
+                    gap: 8,
+                    padding: '14px 16px',
+                    borderBottom: '1px solid var(--border)',
+                    alignItems: 'center',
+                    background: over70 ? 'rgba(249, 115, 22, 0.15)' : undefined,
+                    borderLeft: over70 ? '3px solid #f97316' : undefined,
+                  }}
+                >
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{p.redniBroj}.</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{formatDatum(p.datum)}</p>
+                  <p style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={formatOpis(p)}>{formatOpis(p)}</p>
+                  <p style={{ color: 'var(--text-primary)', fontSize: 12, margin: 0, textAlign: 'right' }}>{iznosOriginal(p)}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+                    <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>{formatIznos(p.iznos_rsd ?? 0)} RSD</span>
+                    <span title={nbsTooltipText(p)} style={{ cursor: 'help', color: 'var(--text-muted)', display: 'inline-flex', fontSize: 14 }} aria-label="Kurs NBS">ℹ️</span>
                   </div>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.redniBroj}.</p>
-                    <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{formatDatum(f.datum)}</p>
-                    <p style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.klijent}</p>
-                    <p style={{ color: '#00ffb3', fontWeight: 700, fontSize: 13, margin: 0, textAlign: 'right' }}>{formatIznos(f.iznos)} RSD</p>
-                    <button
-                      onClick={() => potvrdiDrisanje(i)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', textAlign: 'center' }}
-                    >×</button>
-                  </div>
-                )}
-              </div>
-            ))}
+                </div>
+              )
+            })}
 
             {/* Footer — ukupno za filter */}
-            <div style={{ display: 'grid', gridTemplateColumns: '40px 90px 1fr 110px 40px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
               <div />
               <div />
               <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontWeight: 700 }}>UKUPNO {filter !== 'sve' ? filter : ''}</p>
-              <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 14, margin: 0, textAlign: 'right' }}>{formatIznos(ukupno)} RSD</p>
               <div />
+              <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 14, margin: 0, textAlign: 'right' }}>
+                {filter !== 'sve' && <span style={{ fontWeight: 600, color: 'var(--text-muted)', marginRight: 8 }}>{filtrirane.length} {filtrirane.length === 1 ? 'faktura' : filtrirane.length >= 2 && filtrirane.length <= 4 ? 'fakture' : 'faktura'}</span>}
+                {formatIznos(ukupnoFilter)} RSD
+              </p>
             </div>
+            {filtrirane.some(p => isOver70(p.klijent)) && (
+              <div style={{ margin: 16, padding: '12px 16px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden>⚠️</span>
+                <p style={{ fontSize: 12, color: 'var(--text-primary)', margin: 0, flex: 1 }}>
+                  Narandžasta oznaka: klijent čini više od 70% prihoda u prikazu (test samostalnosti).
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

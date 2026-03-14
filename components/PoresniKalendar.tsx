@@ -2,10 +2,9 @@
 
 import { useState, useEffect } from "react";
 import {
-  Calendar, CheckCircle, AlertTriangle, Clock, FileText,
-  BookOpen, Plus, Archive, X, ChevronRight, Zap, Shield,
+  Calendar, CheckCircle, AlertTriangle, Clock, FileText, ChevronRight,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { getTaxDeadlineForMonth, isPastDeadlineForCurrentMonth } from "@/lib/tax-deadline";
 
 interface Rok {
   id: string;
@@ -32,57 +31,19 @@ function getStatus(daysLeft: number, placeno: boolean): Status {
   return "na_cekanju";
 }
 
-function generateRokovi2026(): Rok[] {
+function generateRokovi(year: number): Rok[] {
   const danas = new Date();
+  danas.setHours(0, 0, 0, 0);
   const godisnji: Rok[] = [];
   for (let m = 0; m < 12; m++) {
-    const datum = new Date(2026, m, 15);
-    if (datum >= danas) godisnji.push({ id: `mesecni-2026-${m}`, naziv: `Porez za ${datum.toLocaleDateString("sr-RS",{month:"long"})}`, opis: "Uplata doprinosa i poreza na prihod paušalca", datum, tip: "mesecni" });
+    const datum = getTaxDeadlineForMonth(year, m);
+    if (datum >= danas) godisnji.push({ id: `mesecni-${year}-${m}`, naziv: `Porez za ${datum.toLocaleDateString("sr-RS",{month:"long"})}`, opis: "Uplata doprinosa i poreza na prihod paušalca", datum, tip: "mesecni" });
   }
-  const ekoTaksa = new Date(2026, 3, 30);
-  if (ekoTaksa >= danas) godisnji.push({ id:"eko-taksa-2026", naziv:"Eko-taksa", opis:"Rok za uplatu naknade za zaštitu životne sredine", datum:ekoTaksa, tip:"godisnji" });
-  const ppOpo = new Date(2026, 2, 15);
-  if (ppOpo >= danas) godisnji.push({ id:"pp-opo-2026", naziv:"Poreska prijava (PP OPO)", opis:"Podnošenje prijave za promene u toku prethodne godine", datum:ppOpo, tip:"godisnji" });
+  const ekoTaksa = new Date(year, 3, 30);
+  if (ekoTaksa >= danas) godisnji.push({ id:`eko-taksa-${year}`, naziv:"Eko-taksa", opis:"Rok za uplatu naknade za zaštitu životne sredine", datum:ekoTaksa, tip:"godisnji" });
+  const ppOpo = getTaxDeadlineForMonth(year, 2);
+  if (ppOpo >= danas) godisnji.push({ id:`pp-opo-${year}`, naziv:"Poreska prijava (PP OPO)", opis:"Podnošenje prijave za promene u toku prethodne godine", datum:ppOpo, tip:"godisnji" });
   return godisnji.sort((a,b) => a.datum.getTime()-b.datum.getTime()).slice(0,3);
-}
-
-function UputstvoModal({ onClose }: { onClose: () => void }) {
-  const tacke = [
-    { br:"01", naslov:"Ko je paušalac?", tekst:"Paušalni preduzetnik plaća porez na osnovu rešenja Poreske uprave — ne na osnovu stvarnog prihoda. Iznos je fiksiran i isti svaki mesec." },
-    { br:"02", naslov:"Kada i šta plaćaš?", tekst:"Do 15. u mesecu plaćaš doprinose (PIO, zdravstvo, nezaposlenost) i porez na prihod." },
-    { br:"03", naslov:"KPO knjiga", tekst:"Obavezan si da vodiš Knjigu prihoda (KPO). Svaka faktura mora biti upisana." },
-    { br:"04", naslov:"Limit prihoda", tekst:"Za 2026. godinu limit za paušalno oporezivanje je 6.000.000 RSD godišnje." },
-    { br:"05", naslov:"Eko-taksa", tekst:"Jednom godišnje (april) plaćaš ekološku naknadu. Iznos zavisi od opštine i delatnosti." },
-    { br:"06", naslov:"Fakture i PDV", tekst:"Paušalci NISU u sistemu PDV-a. Ne naplaćuješ PDV i ne možeš da ga odbijaš." },
-  ];
-  return (
-    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", backdropFilter:"blur(8px)", zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", padding:"20px" }} onClick={onClose}>
-      <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"20px", maxWidth:"620px", width:"100%", maxHeight:"85vh", overflowY:"auto", padding:"32px" }} onClick={e=>e.stopPropagation()}>
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"28px" }}>
-          <div>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"6px" }}>
-              <BookOpen size={20} color="var(--accent)" />
-              <span style={{ color:"var(--accent)", fontSize:"12px", fontWeight:700, letterSpacing:"2px", textTransform:"uppercase" }}>Vodič</span>
-            </div>
-            <h2 style={{ color:"var(--text-primary)", fontSize:"22px", fontWeight:700, margin:0 }}>Uputstvo za početnike</h2>
-          </div>
-          <button onClick={onClose} style={{ background:"var(--bg-primary)", border:"1px solid var(--border)", borderRadius:"10px", color:"var(--text-muted)", cursor:"pointer", padding:"8px", display:"flex", alignItems:"center" }}><X size={18} /></button>
-        </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
-          {tacke.map(t => (
-            <div key={t.br} style={{ background:"var(--bg-primary)", border:"1px solid var(--border)", borderRadius:"14px", padding:"18px 20px", display:"flex", gap:"16px" }}>
-              <span style={{ color:"var(--accent)", fontSize:"11px", fontWeight:800, fontFamily:"monospace", minWidth:"24px" }}>{t.br}</span>
-              <div>
-                <p style={{ color:"var(--text-primary)", fontWeight:600, fontSize:"14px", margin:"0 0 4px 0" }}>{t.naslov}</p>
-                <p style={{ color:"var(--text-muted)", fontSize:"13px", lineHeight:"1.6", margin:0 }}>{t.tekst}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-        <p style={{ color:"var(--text-muted)", fontSize:"12px", textAlign:"center", marginTop:"24px", marginBottom:0 }}>Za detaljnija pitanja konsultuj svog računovođu ili Poresku upravu.</p>
-      </div>
-    </div>
-  );
 }
 
 function StatusBadge({ status, daysLeft }: { status: Status; daysLeft: number }) {
@@ -146,46 +107,10 @@ function QuickActionBtn({ icon, label, sublabel, accent, onClick }: { icon:React
   );
 }
 
-function PersonalizovaniPozdrav({ ukupnoRsd, limit }: { ukupnoRsd:number; limit:number }) {
-  const [imeFirme, setImeFirme] = useState("Firmo");
-  useEffect(() => {
-    try { const p = JSON.parse(localStorage.getItem("pausalac_profil")||"{}"); if(p.naziv) setImeFirme(p.naziv); } catch {}
-  }, []);
-  const danas = new Date().toLocaleDateString("sr-RS",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
-  const procenat = limit > 0 ? (ukupnoRsd/limit)*100 : 0;
-  const stanje = procenat >= 80 ? "kritično" : "stabilno";
-  const stanjeColor = procenat >= 80 ? "#ff4444" : "var(--accent)";
-  const stanjeIcon = procenat >= 80 ? <AlertTriangle size={14}/> : <Shield size={14}/>;
-  return (
-    <div style={{ background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"20px", padding:"24px 28px", marginBottom:"24px", position:"relative", overflow:"hidden" }}>
-      <div style={{ position:"absolute", top:-40, right:-40, width:160, height:160, background:"var(--accent)", borderRadius:"50%", filter:"blur(80px)", opacity:0.07, pointerEvents:"none" }} />
-      <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:"12px" }}>
-        <div>
-          <p style={{ color:"var(--text-muted)", fontSize:"12px", margin:"0 0 6px 0" }}>{danas.charAt(0).toUpperCase()+danas.slice(1)}</p>
-          <h2 style={{ color:"var(--text-primary)", fontSize:"22px", fontWeight:700, margin:"0 0 4px 0" }}>Zdravo, <span style={{ color:"var(--accent)" }}>{imeFirme}</span>!</h2>
-          <p style={{ color:"var(--text-muted)", fontSize:"13px", margin:0 }}>Pregled tvojih obaveza i aktivnosti.</p>
-        </div>
-        <div style={{ background:procenat>=80?"rgba(255,68,68,0.1)":"rgba(0,255,179,0.08)", border:`1px solid ${procenat>=80?"rgba(255,68,68,0.3)":"rgba(0,255,179,0.2)"}`, borderRadius:"14px", padding:"14px 18px", textAlign:"center", minWidth:"160px" }}>
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:"6px", color:stanjeColor, marginBottom:"4px" }}>
-            {stanjeIcon}
-            <span style={{ fontSize:"11px", fontWeight:800, textTransform:"uppercase", letterSpacing:"1.5px" }}>{stanje}</span>
-          </div>
-          <p style={{ color:"var(--text-muted)", fontSize:"11px", margin:0, lineHeight:"1.4" }}>u odnosu na godišnji limit</p>
-          <div style={{ marginTop:"8px", height:"4px", background:"var(--bg-primary)", borderRadius:"2px", overflow:"hidden" }}>
-            <div style={{ height:"100%", width:`${Math.min(procenat,100)}%`, background:stanjeColor, borderRadius:"2px", transition:"width 0.8s ease" }} />
-          </div>
-          <p style={{ color:"var(--text-muted)", fontSize:"10px", margin:"4px 0 0 0" }}>{procenat.toFixed(1)}% od 6.000.000 RSD</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function PoresniKalendar({ ukupnoRsd=0, limit=6000000 }: { ukupnoRsd?:number; limit?:number }) {
-  const router = useRouter();
-  const [rokovi] = useState<Rok[]>(generateRokovi2026);
+  const currentYear = new Date().getFullYear();
+  const [rokovi] = useState<Rok[]>(() => generateRokovi(currentYear));
   const [placanja, setPlacanja] = useState<PlacanjaState>({});
-  const [showUputstvo, setShowUputstvo] = useState(false);
 
   useEffect(() => {
     try { setPlacanja(JSON.parse(localStorage.getItem("pausalac_placanja")||"{}")); } catch {}
@@ -201,50 +126,35 @@ export default function PoresniKalendar({ ukupnoRsd=0, limit=6000000 }: { ukupno
   const jeePlaceno = (rokId: string, datum: Date) => !!placanja[`${datum.getFullYear()}-${datum.getMonth()}-${rokId}`];
 
   return (
-    <>
-      {showUputstvo && <UputstvoModal onClose={()=>setShowUputstvo(false)} />}
-      <div style={{ fontFamily:"'Inter', -apple-system, sans-serif" }}>
-        <PersonalizovaniPozdrav ukupnoRsd={ukupnoRsd} limit={limit} />
-        <div style={{ display:"flex", gap:"24px", flexWrap:"wrap", alignItems:"flex-start" }}>
-          <div style={{ flex:"1 1 340px", minWidth:"280px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
-              <div style={{ width:"32px", height:"32px", background:"var(--accent-dim)", border:"1px solid rgba(0,255,179,0.25)", borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Calendar size={16} color="var(--accent)" />
-              </div>
-              <div>
-                <h3 style={{ color:"var(--text-primary)", fontSize:"15px", fontWeight:700, margin:0 }}>Sledeći rokovi</h3>
-                <p style={{ color:"var(--text-muted)", fontSize:"11px", margin:0 }}>3 najbitnija predstojeća datuma</p>
-              </div>
-              <span style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid rgba(0,255,179,0.2)", color:"var(--accent)", fontSize:"10px", fontWeight:700, padding:"3px 8px", borderRadius:"20px" }}>2026</span>
+    <div style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ flex: "1 1 340px", minWidth: "280px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+            <div style={{ width: "32px", height: "32px", background: "var(--accent-dim)", border: "1px solid rgba(0,255,179,0.25)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Calendar size={16} color="var(--accent)" />
             </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              {rokovi.map(rok => <RokCard key={rok.id} rok={rok} placeno={jeePlaceno(rok.id,rok.datum)} onOznaciPlaceno={()=>oznaciKaoPlaceno(rok.id)} />)}
+            <div>
+              <h3 style={{ color: "var(--text-primary)", fontSize: "15px", fontWeight: 700, margin: 0 }}>Sledeći rokovi</h3>
+              <p style={{ color: "var(--text-muted)", fontSize: "11px", margin: 0 }}>3 najbitnija predstojeća datuma</p>
             </div>
+            <span style={{ marginLeft: "auto", background: "var(--accent-dim)", border: "1px solid rgba(0,255,179,0.2)", color: "var(--accent)", fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px" }}>{currentYear}</span>
           </div>
-          <div style={{ flex:"1 1 280px", minWidth:"240px" }}>
-            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
-              <div style={{ width:"32px", height:"32px", background:"rgba(102,119,255,0.1)", border:"1px solid rgba(102,119,255,0.25)", borderRadius:"10px", display:"flex", alignItems:"center", justifyContent:"center" }}>
-                <Zap size={16} color="#6677ff" />
-              </div>
-              <div>
-                <h3 style={{ color:"var(--text-primary)", fontSize:"15px", fontWeight:700, margin:0 }}>Brze akcije</h3>
-                <p style={{ color:"var(--text-muted)", fontSize:"11px", margin:0 }}>Najčešće korišćene opcije</p>
-              </div>
-            </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
-              <QuickActionBtn icon={<Plus size={18}/>} label="Nova Faktura" sublabel="Kreiranje i PDF export" accent="var(--accent)" onClick={()=>router.push("/faktura")} />
-              <QuickActionBtn icon={<Archive size={18}/>} label="Generiši KPO" sublabel="Pregled i export knjige" accent="#6677ff" onClick={()=>router.push("/kpo")} />
-              <QuickActionBtn icon={<BookOpen size={18}/>} label="Uputstvo za početnike" sublabel="Osnovna pravila paušala" accent="#ff9944" onClick={()=>setShowUputstvo(true)} />
-            </div>
-            <div style={{ marginTop:"16px", background:"var(--bg-card)", border:"1px solid var(--border)", borderRadius:"14px", padding:"14px 16px", display:"flex", alignItems:"flex-start", gap:"10px" }}>
-              <FileText size={14} color="var(--text-muted)" style={{ flexShrink:0, marginTop:"2px" }} />
-              <p style={{ color:"var(--text-muted)", fontSize:"11px", lineHeight:"1.6", margin:0 }}>
-                Porez se plaća <strong style={{ color:"var(--text-primary)" }}>do 15. u mesecu</strong> za tekući mesec. Kasno plaćanje povlači kamatu od 0,0322% dnevno.
-              </p>
-            </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {rokovi.map(rok => <RokCard key={rok.id} rok={rok} placeno={jeePlaceno(rok.id, rok.datum)} onOznaciPlaceno={() => oznaciKaoPlaceno(rok.id)} />)}
           </div>
         </div>
+        {isPastDeadlineForCurrentMonth() && (
+          <div style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.3)", borderRadius: "14px", padding: "12px 16px", marginBottom: 12 }}>
+            <p style={{ color: "#ff4444", fontSize: 12, fontWeight: 600, margin: 0 }}>⚠️ Plaćanje kasni. Kamata je 0,0322% dnevno.</p>
+          </div>
+        )}
+        <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "14px", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+          <FileText size={14} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: "2px" }} />
+          <p style={{ color: "var(--text-muted)", fontSize: "11px", lineHeight: "1.6", margin: 0 }}>
+            Rok plaćanja: <strong style={{ color: "var(--text-primary)" }}>do {rokovi[0]?.tip === "mesecni" ? formatDatum(rokovi[0].datum) : "15. u mesecu"}</strong> (ako je 15. vikend ili praznik, pomera se na naredni radni dan). Kasno plaćanje povlači kamatu od 0,0322% dnevno.
+          </p>
+        </div>
       </div>
-    </>
+    </div>
   );
 }

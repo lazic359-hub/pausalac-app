@@ -46,11 +46,11 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent
           document={dokument}
           fileName={`faktura-${brojFakture}.pdf`}
           style={{
-            background: '#0d1117',
-            border: '1px solid #1a2040',
+            background: 'transparent',
+            border: '1px solid var(--accent)',
             borderRadius: 12,
             padding: '14px',
-            color: '#00ffb3',
+            color: 'var(--accent)',
             fontSize: 14,
             fontWeight: 700,
             textDecoration: 'none',
@@ -68,8 +68,8 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent
 
   if (!Komp) return (
     <button disabled style={{
-      width: '100%', background: '#0d1117', border: '1px solid #1a2040',
-      borderRadius: 12, padding: '14px', color: '#444',
+      width: '100%', background: 'transparent', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '14px', color: 'var(--text-muted)',
       fontSize: 14, fontWeight: 700, cursor: 'not-allowed',
     }}>
       ⏳ Priprema PDF...

@@ -218,7 +218,7 @@ export default function RashodiPage() {
             </div>
 
             {greska && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {greska}</p>}
-            {uspeh && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✅ Rashod dodat!</p>}
+            {uspeh && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0' }}>✅ Rashod dodat!</p>}
 
             <button onClick={dodaj} style={{
               width: '100%', background: '#ff6b6b', color: '#fff',

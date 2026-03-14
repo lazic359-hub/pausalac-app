@@ -9,7 +9,7 @@ type ToastType = 'success' | 'error' | 'warning'
 
 function Toast({ msg, type, onClose }: { msg: string; type: ToastType; onClose: () => void }) {
   const colors = {
-    success: { bg: 'rgba(0,255,179,0.1)', border: 'rgba(0,255,179,0.3)', color: '#00ffb3', icon: <CheckCircle size={15} /> },
+    success: { bg: 'rgba(0,255,179,0.1)', border: 'rgba(0,255,179,0.3)', color: 'var(--accent)', icon: <CheckCircle size={15} /> },
     error:   { bg: 'rgba(255,60,60,0.1)',  border: 'rgba(255,60,60,0.3)',  color: '#ff5555', icon: <AlertTriangle size={15} /> },
     warning: { bg: 'rgba(255,180,0,0.1)',  border: 'rgba(255,180,0,0.3)',  color: '#ffb400', icon: <AlertTriangle size={15} /> },
   }[type]
@@ -118,26 +118,12 @@ export default function DataManagement() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '40px 0 28px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, var(--border))' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ShieldCheck size={14} color="#00ffb3" />
+          <span style={{ fontSize: 14 }}>🔒</span>
           <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-            Sigurnost i Rezervna Kopija
+            Sigurnost i rezervna kopija
           </span>
         </div>
         <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, var(--border), transparent)' }} />
-      </div>
-
-      {/* Info box */}
-      <div style={{
-        background: 'var(--accent-dim)',
-        border: '1px solid var(--border)',
-        borderRadius: 14, padding: '14px 18px',
-        marginBottom: 24,
-        display: 'flex', alignItems: 'flex-start', gap: 12,
-      }}>
-        <ShieldCheck size={16} color="#00ffb3" style={{ flexShrink: 0, marginTop: 2 }} />
-        <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>
-          Tvoji podaci se čuvaju <strong style={{ color: 'var(--text-primary)' }}>isključivo u ovom browseru</strong>. Preporučujemo da povremeno napraviš rezervnu kopiju kako ne bi izgubio podatke ako obrišeš cache ili promeniš uređaj.
-        </p>
       </div>
 
       {/* Dugmad */}
@@ -147,7 +133,7 @@ export default function DataManagement() {
           icon={<Download size={17} />}
           label="Preuzmi Rezervnu Kopiju"
           sublabel="Čuva sve podatke kao .json fajl na tvoj računar"
-          accent="#00ffb3"
+          accent="var(--accent)"
           onClick={handleExport}
         />
 

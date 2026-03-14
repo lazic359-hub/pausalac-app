@@ -1,8 +1,13 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
+import { createClient } from '@supabase/supabase-js'
 import { ThemeToggle } from '@/components/ThemeToggle'
 const PreuzmiPDFDugme = dynamic(() => import('../../components/PreuzmiPDFDugme'), { ssr: false })
+
+const SUPABASE_URL = 'https://ymiyqhblbqkkycpdnlaq.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk'
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 type Valuta = 'RSD' | 'EUR' | 'USD'
 type Profil = {
@@ -16,12 +21,22 @@ type KpoUnos = { datum: string; klijent: string; iznos: number; brojFakture: str
 
 const KURSEVI: Record<Valuta, number> = { RSD: 1, EUR: 117, USD: 108 }
 
-function generisiBrojFakture(): string {
-  const sad = new Date()
-  const god = sad.getFullYear()
-  const mes = String(sad.getMonth() + 1).padStart(2, '0')
-  const existing = JSON.parse(localStorage.getItem('kpo_knjiga') || '[]')
-  return `${god}-${mes}-${String(existing.length + 1).padStart(3, '0')}`
+async function sledeciBrojFakture(userId: string): Promise<string> {
+  const godina = new Date().getFullYear()
+  const prefix = `${godina}-`
+  const { data, error } = await supabase
+    .from('fakture')
+    .select('broj_fakture')
+    .eq('user_id', userId)
+    .like('broj_fakture', prefix + '%')
+  if (error || !data) return `${godina}-001`
+  const brojevi = data
+    .map((r: { broj_fakture: string }) => r.broj_fakture)
+    .filter((b: string) => /^\d{4}-\d{1,6}$/.test(b))
+    .map((b: string) => parseInt(b.split('-')[1], 10))
+    .filter((n: number) => !isNaN(n))
+  const max = brojevi.length ? Math.max(...brojevi) : 0
+  return `${godina}-${String(max + 1).padStart(3, '0')}`
 }
 
 const kartica: React.CSSProperties = {
@@ -80,6 +95,7 @@ function ValutaPicker({ valuta, onChange }: { valuta: Valuta; onChange: (v: Valu
 }
 
 export default function FakturaPage() {
+  const [user, setUser] = useState<{ id: string } | null>(null)
   const [profil, setProfil] = useState<Profil | null>(null)
   const [datum, setDatum] = useState(new Date().toISOString().split('T')[0])
   const [valuta, setValuta] = useState<Valuta>('RSD')
@@ -93,6 +109,25 @@ export default function FakturaPage() {
   const [greske, setGreske] = useState<string[]>([])
   const [nacinPlacanja, setNacinPlacanja] = useState<string>('Prenos na račun')
   const [legalNotes, setLegalNotes] = useState<string>('domaci')
+  const [klijentSuggestions, setKlijentSuggestions] = useState<string[]>([])
+  const [showKlijentDropdown, setShowKlijentDropdown] = useState(false)
+  const klijentDropdownRef = useRef<HTMLDivElement>(null)
+  const [rokPlacanja, setRokPlacanja] = useState<'7' | '15' | '30' | '60' | 'custom'>('30')
+  const [rokPlacanjaDatum, setRokPlacanjaDatum] = useState('')
+  const rokPlacanjaAktuelanDatum = (() => {
+    if (rokPlacanja === 'custom') return rokPlacanjaDatum || ''
+    const d = new Date(datum)
+    d.setDate(d.getDate() + parseInt(rokPlacanja, 10))
+    return d.toISOString().split('T')[0]
+  })()
+  const setRokPlacanjaWithDefault = (v: '7' | '15' | '30' | '60' | 'custom') => {
+    setRokPlacanja(v)
+    if (v === 'custom' && !rokPlacanjaDatum) {
+      const d = new Date(datum)
+      d.setDate(d.getDate() + 30)
+      setRokPlacanjaDatum(d.toISOString().split('T')[0])
+    }
+  }
 
   const LEGAL_OPTIONS = [
     { value: 'domaci', label: '🇷🇸 Domaći klijent' },
@@ -112,10 +147,58 @@ export default function FakturaPage() {
   }, [])
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null))
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      let cancelled = false
+      sledeciBrojFakture(user.id).then((next) => {
+        if (!cancelled) setBrojFakture((prev) => (prev === '' ? next : prev))
+      })
+      return () => { cancelled = true }
+    } else {
+      setBrojFakture((prev) => (prev === '' ? `${new Date().getFullYear()}-001` : prev))
+    }
+  }, [user])
+
+  useEffect(() => {
     if (valuta === 'EUR') setKurs('117')
     else if (valuta === 'USD') setKurs('108')
     setSacuvano(false)
   }, [valuta])
+
+  // Zatvori autocomplete pri kliku van
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (klijentDropdownRef.current && !klijentDropdownRef.current.contains(e.target as Node))
+        setShowKlijentDropdown(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // Učitaj klijente za autocomplete: iz kpo_knjige (localStorage) i prihoda (Supabase)
+  useEffect(() => {
+    const fromKpo: string[] = []
+    try {
+      const kpo: KpoUnos[] = JSON.parse(localStorage.getItem('kpo_knjiga') || '[]')
+      kpo.forEach(u => { if (u.klijent?.trim()) fromKpo.push(u.klijent.trim()) })
+    } catch { /* ignore */ }
+    if (!user) {
+      setKlijentSuggestions([...new Set(fromKpo)].sort((a, b) => a.localeCompare(b)))
+      return
+    }
+    const fetchPrihodi = async () => {
+      const { data } = await supabase.from('prihodi').select('klijent').eq('user_id', user.id)
+      const fromPrihodi = (data || []).map((r: { klijent: string }) => r.klijent).filter(Boolean)
+      const merged = [...new Set([...fromKpo, ...fromPrihodi])].sort((a, b) => a.localeCompare(b))
+      setKlijentSuggestions(merged)
+    }
+    fetchPrihodi()
+  }, [user])
 
   const kursNum = parseFloat(kurs) || KURSEVI[valuta]
   const ukupnoValuta = stavke.reduce((sum, s) => sum + (parseFloat(s.iznos) || 0), 0)
@@ -129,17 +212,37 @@ export default function FakturaPage() {
     setStavke(stavke.map(s => s.id === id ? { ...s, [polje]: v } : s))
   const ima = (key: string) => greske.includes(key)
 
-  const sacuvajFakturu = () => {
+  const sacuvajFakturu = async () => {
     const g: string[] = []
+    if (!brojFakture.trim()) g.push('brojFakture')
     if (!klijentNaziv) g.push('klijentNaziv')
     if (!klijentAdresa) g.push('klijentAdresa')
     if (stavke.some(s => !s.opis || !s.iznos)) g.push('stavke')
     if (ukupnoValuta <= 0) g.push('iznos')
     setGreske(g)
     if (g.length > 0) return
-    const novi = generisiBrojFakture()
-    setBrojFakture(novi)
-    const noviUnos: KpoUnos = { datum, klijent: klijentNaziv, iznos: ukupnoRSD, brojFakture: novi, nacinPlacanja }
+    const br = brojFakture.trim()
+    const payload = {
+      klijent_naziv: klijentNaziv,
+      klijent_adresa: klijentAdresa,
+      klijent_pib: klijentPib || undefined,
+      stavke: stavke.map(s => ({ id: s.id, opis: s.opis, iznos: s.iznos })),
+      valuta,
+      kurs: kursNum,
+      iznos_rsd: ukupnoRSD,
+      legal_notes: LEGAL_TEXTS[legalNotes],
+    }
+    if (user) {
+      const { error } = await supabase.from('fakture').insert({ user_id: user.id, broj_fakture: br, datum, payload })
+      if (error) {
+        const fallback = await supabase.from('fakture').insert({ user_id: user.id, broj_fakture: br, datum })
+        if (fallback.error) {
+          setGreske(['brojFakture'])
+          return
+        }
+      }
+    }
+    const noviUnos: KpoUnos = { datum, klijent: klijentNaziv, iznos: ukupnoRSD, brojFakture: br, nacinPlacanja }
     const existing: KpoUnos[] = JSON.parse(localStorage.getItem('kpo_knjiga') || '[]')
     localStorage.setItem('kpo_knjiga', JSON.stringify([...existing, noviUnos]))
     setSacuvano(true)
@@ -152,11 +255,11 @@ export default function FakturaPage() {
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => window.history.back()}
           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}
-          onMouseEnter={e => e.currentTarget.style.color = '#00ffb3'}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
         >←</button>
         <span style={{ fontSize: 18 }}>🧾</span>
-        <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Nova faktura</span>
+        <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Nova faktura</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           {inostranstvo && (
             <span style={{ background: valutaBoja + '15', border: `1px solid ${valutaBoja}40`, color: valutaBoja, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
@@ -173,7 +276,7 @@ export default function FakturaPage() {
           <div style={{ background: '#2a1a00', border: '1px solid #f59e0b40', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
             <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>
               ⚠️ Nisi podesio profil firme.{' '}
-              <a href="/settings" style={{ color: '#00ffb3', textDecoration: 'none', fontWeight: 600 }}>Idi na Podešavanja →</a>
+              <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Idi na Podešavanja →</a>
             </p>
           </div>
         )}
@@ -181,7 +284,7 @@ export default function FakturaPage() {
         {/* Izdavalac */}
         {profil && (
           <div style={kartica}>
-            <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#00ffb3', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
+            <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>
               {inostranstvo ? 'SELLER / IZDAVALAC' : 'IZDAVALAC'}
             </p>
@@ -196,6 +299,19 @@ export default function FakturaPage() {
             )}
           </div>
         )}
+
+        {/* Broj fakture */}
+        <div style={kartica}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>BROJ FAKTURE</p>
+          <Input
+            value={brojFakture}
+            onChange={v => { setBrojFakture(v); setGreske(g => g.filter(x => x !== 'brojFakture')) }}
+            placeholder="npr. 2026-001"
+            hasError={ima('brojFakture')}
+          />
+          {ima('brojFakture') && <Greska tekst="Unesite broj fakture" />}
+        </div>
 
         {/* Valuta */}
         <div style={kartica}>
@@ -235,10 +351,36 @@ export default function FakturaPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>
             {inostranstvo ? 'COMPANY NAME / NAZIV *' : 'NAZIV KLIJENTA *'}
           </p>
-          <Input value={klijentNaziv}
-            onChange={v => { setKlijentNaziv(v); setGreske(g => g.filter(x => x !== 'klijentNaziv')) }}
-            placeholder={inostranstvo ? 'Company Ltd / Firma DOO' : 'npr. Firma DOO'}
-            hasError={ima('klijentNaziv')} style={{ marginBottom: 4 }} />
+          <div ref={klijentDropdownRef} style={{ position: 'relative', marginBottom: 4 }}>
+            <Input value={klijentNaziv}
+              onChange={v => { setKlijentNaziv(v); setGreske(g => g.filter(x => x !== 'klijentNaziv')); setShowKlijentDropdown(true) }}
+              onFocus={() => setShowKlijentDropdown(true)}
+              placeholder={inostranstvo ? 'Company Ltd / Firma DOO' : 'npr. Firma DOO'}
+              hasError={ima('klijentNaziv')} />
+            {showKlijentDropdown && klijentSuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, maxHeight: 200, overflowY: 'auto',
+                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, zIndex: 50,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              }}>
+                {(klijentNaziv.trim()
+                  ? klijentSuggestions.filter(k => k.toLowerCase().includes(klijentNaziv.trim().toLowerCase()))
+                  : klijentSuggestions
+                ).slice(0, 15).map(k => (
+                  <button key={k} type="button"
+                    onMouseDown={e => { e.preventDefault(); setKlijentNaziv(k); setShowKlijentDropdown(false) }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', border: 'none',
+                      background: 'transparent', color: 'var(--text-primary)', fontSize: 14, cursor: 'pointer',
+                      borderBottom: '1px solid var(--border)',
+                    }}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {ima('klijentNaziv') && <Greska tekst="Obavezno polje" />}
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '10px 0 6px 0' }}>
@@ -361,21 +503,57 @@ export default function FakturaPage() {
         {/* Način plaćanja */}
         <div style={kartica}>
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>NAČIN PLAĆANJA</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {['Prenos na račun', 'Gotovina', 'Kartica', 'PayPal', 'Stripe'].map(opt => (
-              <button key={opt} onClick={() => setNacinPlacanja(opt)}
-                style={{
-                  textAlign: 'left', padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-                  background: nacinPlacanja === opt ? 'var(--accent-dim)' : 'var(--bg-primary)',
-                  border: `1px solid ${nacinPlacanja === opt ? 'var(--accent)' : 'var(--border)'}`,
-                  color: nacinPlacanja === opt ? 'var(--accent)' : 'var(--text-muted)',
-                  fontWeight: nacinPlacanja === opt ? 700 : 400, fontSize: 14,
-                  transition: 'all 0.2s',
-                }}>
-                {opt}
-              </button>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            {['Prenos na račun', 'Gotovina', 'Kartica', 'PayPal', 'Stripe'].map(opt => {
+              const aktivan = nacinPlacanja === opt
+              return (
+                <button key={opt} onClick={() => setNacinPlacanja(opt)}
+                  style={{
+                    padding: '11px 0',
+                    background: aktivan ? '#00ffb318' : 'var(--bg-primary)',
+                    border: `1px solid ${aktivan ? '#00ffb370' : 'var(--border)'}`,
+                    borderRadius: 10, color: aktivan ? 'var(--accent)' : 'var(--text-muted)',
+                    fontWeight: aktivan ? 700 : 400, fontSize: 14,
+                    cursor: 'pointer', transition: 'all 0.2s',
+                    boxShadow: aktivan ? '0 0 14px #00ffb318' : 'none',
+                  }}>
+                  {opt}
+                </button>
+              )
+            })}
           </div>
+        </div>
+
+        {/* Rok plaćanja */}
+        <div style={kartica}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>ROK PLAĆANJA</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 8 }}>
+            {(['7', '15', '30', '60', 'custom'] as const).map(opt => {
+              const aktivan = rokPlacanja === opt
+              const label = opt === 'custom' ? 'Custom' : `${opt} dana`
+              return (
+                <button key={opt} onClick={() => setRokPlacanjaWithDefault(opt)}
+                  style={{
+                    padding: '11px 4px',
+                    background: aktivan ? '#00ffb318' : 'var(--bg-primary)',
+                    border: `1px solid ${aktivan ? '#00ffb370' : 'var(--border)'}`,
+                    borderRadius: 10, color: aktivan ? 'var(--accent)' : 'var(--text-muted)',
+                    fontWeight: aktivan ? 700 : 400, fontSize: 13,
+                    cursor: 'pointer', transition: 'all 0.2s',
+                    boxShadow: aktivan ? '0 0 14px #00ffb318' : 'none',
+                  }}>
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          {rokPlacanja === 'custom' && (
+            <div style={{ marginTop: 12 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>DATUM ROKA PLAĆANJA</p>
+              <Input type="date" value={rokPlacanjaDatum} onChange={setRokPlacanjaDatum}
+                placeholder="Izaberite datum" />
+            </div>
+          )}
         </div>
 
         {/* Upozorenje za IBAN */}
@@ -383,7 +561,7 @@ export default function FakturaPage() {
           <div style={{ background: '#1a1500', border: '1px solid #f59e0b25', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
             <p style={{ color: '#7a6020', fontSize: 13, margin: 0 }}>
               💡 Dodaj IBAN i SWIFT u{' '}
-              <a href="/settings" style={{ color: '#00ffb3', textDecoration: 'none', fontWeight: 600 }}>Podešavanjima</a>
+              <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Podešavanjima</a>
               {' '}za prikaz na PDF-u.
             </p>
           </div>
@@ -404,7 +582,7 @@ export default function FakturaPage() {
             />
           ) : (
             <button onClick={sacuvajFakturu}
-              style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340', transition: 'box-shadow 0.2s' }}
+              style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340', transition: 'box-shadow 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 40px #00ffb370'}
               onMouseLeave={e => e.currentTarget.style.boxShadow = '0 0 20px #00ffb340'}
             >

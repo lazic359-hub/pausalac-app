@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import MonthlyObligations from '@/components/MonthlyObligations'
@@ -14,6 +14,12 @@ type Valuta = 'RSD' | 'EUR' | 'USD'
 type Faktura = {
   id: string; user_id: string; klijent: string; iznos: number
   valuta: Valuta; iznos_rsd: number; datum: string; napomena: string
+}
+/** Red iz tabele fakture (računi) — za modal "Iz fakture" */
+type FakturaInvoice = {
+  id: string; user_id: string; klijent: string | null; iznos: number | null
+  valuta: string | null; iznos_rsd: number | null; datum: string; napomena: string | null
+  broj_fakture: string | null; status?: string | null
 }
 type Rashod = {
   id: string; user_id: string; datum: string; opis: string
@@ -207,10 +213,24 @@ export default function Home() {
   const [prihodiTab, setPrihodiTab] = useState<'lista' | 'dodaj'>('lista')
   const [filterKvartal, setFilterKvartal] = useState<'sve' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('sve')
   const [filterGodina, setFilterGodina] = useState(new Date().getFullYear())
+  const [searchKlijent, setSearchKlijent] = useState('')
   const [brisanjeFaktura, setBrisanjeFaktura] = useState<string | null>(null)
-  const [forma, setForma] = useState({ klijent: '', iznos: '', valuta: 'EUR' as Valuta, datum: '', napomena: '' })
+  const danasStr = () => new Date().toISOString().split('T')[0]
+  const [forma, setForma] = useState({ klijent: '', iznos: '', valuta: 'RSD' as Valuta, datum: danasStr(), napomena: '' })
   const [iznosRsdPrikaz, setIznosRsdPrikaz] = useState('')
   const [kursPrikaz, setKursPrikaz] = useState('')
+  const [toast, setToast] = useState<string | null>(null)
+  const [sviKlijenti, setSviKlijenti] = useState<string[]>([])
+  const [klijentDropdownOpen, setKlijentDropdownOpen] = useState(false)
+  const klijentInputRef = useRef<HTMLInputElement>(null)
+  const klijentDropdownRef = useRef<HTMLDivElement>(null)
+  const klijentBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Modal "Iz fakture" — neplaćene fakture
+  const [modalIzFaktureOpen, setModalIzFaktureOpen] = useState(false)
+  const [neplaceneFakture, setNeplaceneFakture] = useState<FakturaInvoice[]>([])
+  const [izFaktureSelectedId, setIzFaktureSelectedId] = useState<string | null>(null)
+  const [izFaktureDatumPlacanja, setIzFaktureDatumPlacanja] = useState(() => new Date().toISOString().split('T')[0])
+  const [izFaktureLoading, setIzFaktureLoading] = useState(false)
 
   const godina = new Date().getFullYear().toString()
 
@@ -236,6 +256,27 @@ export default function Home() {
       fetchPoresniPodaci()
     }
   }, [user])
+
+  // Učitaj sve fakture, zatim filtriraj one čiji status NIJE 'Plaćena' (neplacena, Neplaćena, kasni, null)
+  useEffect(() => {
+    if (!modalIzFaktureOpen || !user) return
+    const load = async () => {
+      const { data } = await supabase
+        .from('fakture')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('datum', { ascending: false })
+      const sve = (data as FakturaInvoice[]) ?? []
+      const neplacene = sve.filter(f => {
+        const s = f.status == null ? '' : String(f.status).toLowerCase().trim()
+        return s !== 'placena' && s !== 'plaćena' && s !== 'paid'
+      })
+      setNeplaceneFakture(neplacene)
+      setIzFaktureSelectedId(null)
+      setIzFaktureDatumPlacanja(new Date().toISOString().split('T')[0])
+    }
+    load()
+  }, [modalIzFaktureOpen, user])
 
   useEffect(() => {
     const fetchKurs = async () => {
@@ -267,19 +308,22 @@ export default function Home() {
     const pre365 = new Date(); pre365.setDate(pre365.getDate() - 365)
     const pre365Str = pre365.toISOString().split('T')[0]
 
-    const [{ data: f }, { data: f365 }, { data: r }, { data: fAkt }, { data: rAkt }] = await Promise.all([
-      supabase.from('fakture').select('*').gte('datum', `${godinaInt}-01-01`).lte('datum', `${godinaInt}-12-31`).order('datum', { ascending: false }),
-      supabase.from('fakture').select('*').gte('datum', pre365Str).order('datum', { ascending: false }),
+    const [{ data: f }, { data: r }, { data: rAkt }, { data: klijentiData }] = await Promise.all([
+      supabase.from('prihodi').select('*').eq('user_id', user!.id).order('datum', { ascending: false }),
       supabase.from('rashodi').select('*').gte('datum', `${godinaInt}-01-01`).lte('datum', `${godinaInt}-12-31`).order('datum', { ascending: false }),
-      supabase.from('fakture').select('*').order('datum', { ascending: false }).limit(5),
       supabase.from('rashodi').select('*').order('datum', { ascending: false }).limit(5),
+      supabase.from('prihodi').select('klijent').eq('user_id', user!.id),
     ])
 
-    if (f) setFakture(f as Faktura[])
-    if (f365) setFakture365(f365 as Faktura[])
+    if (f) {
+      setFakture(f as Faktura[])
+      setFakture365((f as Faktura[]).filter((x: Faktura) => x.datum >= pre365Str))
+    }
     if (r) setRashodi(r as Rashod[])
+    const unique = [...new Set((klijentiData || []).map((row: { klijent: string }) => row.klijent).filter(Boolean))].sort()
+    setSviKlijenti(unique)
 
-    const prihodiAkt: Aktivnost[] = (fAkt || []).map((fak: Faktura) => ({
+    const prihodiAkt: Aktivnost[] = (f || []).slice(0, 5).map((fak: Faktura) => ({
       id: fak.id, datum: fak.datum, tip: 'prihod',
       opis: fak.klijent, kategorija: '-', iznos: fak.iznos_rsd,
     }))
@@ -296,8 +340,9 @@ export default function Home() {
 
   const logout = async () => { await supabase.auth.signOut(); setFakture([]); setRashodi([]) }
 
-  // ── Kalkulacije ──
-  const ukupnoRSD = fakture.reduce((s, f) => s + f.iznos_rsd, 0)
+  // ── Kalkulacije (dashboard: tekuća godina i 365 dana) ──
+  const godinaInt = new Date().getFullYear()
+  const ukupnoRSD = fakture.filter(f => new Date(f.datum).getFullYear() === godinaInt).reduce((s, f) => s + f.iznos_rsd, 0)
   const ukupnoRSD365 = fakture365.reduce((s, f) => s + f.iznos_rsd, 0)
   // FIX 5: Svi rashodi se pravilno sabiraju
   const ukupnoRashodi = rashodi.reduce((s, r) => s + r.iznos, 0)
@@ -305,8 +350,8 @@ export default function Home() {
   const neto = ukupnoRSD - ukupnoRashodi
   const procenat6M = Math.min((ukupnoRSD / LIMIT_6M) * 100, 100)
   const procenat8M = Math.min((ukupnoRSD365 / LIMIT_8M) * 100, 100)
-  const boja6M = procenat6M > 90 ? '#ff4d4d' : procenat6M > 70 ? '#ffcc00' : '#00ffb3'
-  const boja8M = procenat8M > 90 ? '#ff4d4d' : procenat8M > 70 ? '#ffcc00' : '#00ffb3'
+  const boja6M = procenat6M > 90 ? '#ff4d4d' : procenat6M > 70 ? '#ffcc00' : 'var(--accent)'
+  const boja8M = procenat8M > 90 ? '#ff4d4d' : procenat8M > 70 ? '#ffcc00' : 'var(--accent)'
   const danDanas = new Date().getDate()
 
   const imaPorescePodatke = poresniPodaci &&
@@ -323,9 +368,21 @@ export default function Home() {
     return KVARTALI[filterKvartal].includes(f.datum.split('-')[1])
   })
   const ukupnoFilter = filtriraneFakture.reduce((s, f) => s + f.iznos_rsd, 0)
+  const searchQ = searchKlijent.trim().toLowerCase()
+  const filtriraneFakturePoPretrazi = searchQ
+    ? filtriraneFakture.filter(f => f.klijent.toLowerCase().includes(searchQ))
+    : filtriraneFakture
+  const ukupnoPretraga = filtriraneFakturePoPretrazi.reduce((s, f) => s + f.iznos_rsd, 0)
 
   const formatIznos = (n: number) =>
     new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+
+  // Kurs iz napomene (npr. " [Kurs 1 EUR = 117 RSD]")
+  const parseKursIzNapomene = (napomena: string | null): string | null => {
+    if (!napomena) return null
+    const m = napomena.match(/Kurs 1 (?:EUR|USD) = ([\d.,]+)\s*RSD/i)
+    return m ? m[1].replace(',', '.') : null
+  }
 
   // FIX 1: Ispravan format datuma DD.MM.
   const formatDatumKratak = (d: string) => {
@@ -336,31 +393,89 @@ export default function Home() {
   const dodajFakturu = async () => {
     if (!forma.klijent || !forma.iznos || !user) return
     let iznos_rsd = parseFloat(forma.iznos) * KURSEVI[forma.valuta]
+    let kursKoriscen = KURSEVI[forma.valuta]
     if (forma.valuta !== 'RSD' && forma.datum) {
       try {
         const res = await fetch(`/api/kurs?datum=${forma.datum}`)
         const data = await res.json()
-        iznos_rsd = parseFloat(forma.iznos) * (data.rate || KURSEVI[forma.valuta])
+        kursKoriscen = data.rate || KURSEVI[forma.valuta]
+        iznos_rsd = parseFloat(forma.iznos) * kursKoriscen
       } catch {}
     }
-    const novaFaktura = {
+    const datum = forma.datum || new Date().toISOString().split('T')[0]
+    const klijentTrim = forma.klijent.trim()
+
+    // Provera: da li već postoji plaćena faktura sa istim podacima?
+    const { data: placeneFakture } = await supabase
+      .from('fakture')
+      .select('id, klijent, datum, iznos_rsd')
+      .eq('user_id', user.id)
+      .eq('status', 'placena')
+    const mozdaDuplikat = (placeneFakture ?? []).some(
+      (ff: { klijent: string | null; datum: string; iznos_rsd: number | null }) =>
+        (ff.klijent ?? '').trim() === klijentTrim &&
+        ff.datum === datum &&
+        Math.abs((ff.iznos_rsd ?? 0) - iznos_rsd) < 1
+    )
+    if (mozdaDuplikat && !window.confirm('Ovaj prihod možda već postoji kao faktura — da li želiš da nastaviš?')) return
+
+    const napomenaSaKursom = (forma.napomena || '').trim() +
+      (forma.valuta !== 'RSD' ? ` [Kurs 1 ${forma.valuta} = ${kursKoriscen} RSD]` : '')
+    const noviPrihod = {
       user_id: user.id, klijent: forma.klijent, iznos: parseFloat(forma.iznos),
       valuta: forma.valuta, iznos_rsd,
-      datum: forma.datum || new Date().toISOString().split('T')[0],
-      napomena: forma.napomena,
+      datum,
+      napomena: napomenaSaKursom || null,
     }
-    const { data, error } = await supabase.from('fakture').insert(novaFaktura).select().single()
+    const { data, error } = await supabase.from('prihodi').insert(noviPrihod).select().single()
     if (!error && data) {
       setFakture([data as Faktura, ...fakture])
-      setForma({ klijent: '', iznos: '', valuta: 'EUR', datum: '', napomena: '' })
+      setForma({ klijent: '', iznos: '', valuta: 'RSD', datum: danasStr(), napomena: '' })
       setPrihodiTab('lista')
       fetchSveData()
+      setToast('Prihod uspešno dodat! ✅')
+      setTimeout(() => setToast(null), 3000)
     } else alert('Greška: ' + error?.message)
   }
 
   const obrisiFakturu = async (id: string) => {
-    const { error } = await supabase.from('fakture').delete().eq('id', id)
+    const { error } = await supabase.from('prihodi').delete().eq('id', id)
     if (!error) { setFakture(fakture.filter(f => f.id !== id)); setBrisanjeFaktura(null); fetchSveData() }
+  }
+
+  const oznaciKaoPlacenoIzFakture = async () => {
+    if (!user || !izFaktureSelectedId || !izFaktureDatumPlacanja) return
+    const f = neplaceneFakture.find(x => x.id === izFaktureSelectedId)
+    if (!f) return
+    setIzFaktureLoading(true)
+    const iznosRsd = f.iznos_rsd ?? 0
+    const napomena = (f.napomena?.trim() ? f.napomena + ' ' : '') + (f.broj_fakture ? `[Faktura ${f.broj_fakture}]` : '[Plaćena faktura]')
+    await supabase.from('fakture').update({ status: 'placena' }).eq('id', f.id)
+    const { data: postojeca } = await supabase
+      .from('prihodi')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('klijent', f.klijent ?? '')
+      .eq('datum', izFaktureDatumPlacanja)
+      .gte('iznos_rsd', iznosRsd - 1)
+      .lte('iznos_rsd', iznosRsd + 1)
+      .limit(1)
+    if (!postojeca?.length) {
+      await supabase.from('prihodi').insert({
+        user_id: user.id,
+        klijent: f.klijent ?? '',
+        iznos: f.iznos ?? 0,
+        valuta: (f.valuta as 'RSD' | 'EUR' | 'USD') ?? 'RSD',
+        iznos_rsd: iznosRsd,
+        datum: izFaktureDatumPlacanja,
+        napomena: napomena.trim() || null,
+      })
+    }
+    setModalIzFaktureOpen(false)
+    setIzFaktureLoading(false)
+    fetchSveData()
+    setToast('Prihod dodat ✅')
+    setTimeout(() => setToast(null), 3000)
   }
 
   const inp: React.CSSProperties = {
@@ -378,6 +493,83 @@ export default function Home() {
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
+
+      {/* Toast notifikacija */}
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
+          background: '#22c55e', color: '#fff', fontWeight: 600, fontSize: 14, padding: '12px 24px',
+          borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', animation: 'fadeIn 0.3s ease',
+        }}>
+          {toast}
+        </div>
+      )}
+
+      {/* Modal: Iz fakture — lista neplaćenih faktura, datum plaćanja, Označi kao plaćeno */}
+      {modalIzFaktureOpen && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+          }}
+          onClick={() => setModalIzFaktureOpen(false)}
+        >
+          <div
+            style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, maxWidth: 440, width: '100%', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>Prihod iz fakture</span>
+              <button onClick={() => setModalIzFaktureOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 24, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 12px 0' }}>Izaberite neplaćenu fakturu i unesite datum plaćanja.</p>
+              {neplaceneFakture.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '24px 0', textAlign: 'center' }}>Nema neplaćenih faktura.</p>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    {neplaceneFakture.map(fak => (
+                      <div
+                        key={fak.id}
+                        onClick={() => setIzFaktureSelectedId(izFaktureSelectedId === fak.id ? null : fak.id)}
+                        style={{
+                          padding: '12px 14px', marginBottom: 8, background: izFaktureSelectedId === fak.id ? 'var(--accent)' : 'var(--bg-primary)',
+                          border: `2px solid ${izFaktureSelectedId === fak.id ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 10, cursor: 'pointer',
+                          color: izFaktureSelectedId === fak.id ? '#000' : 'var(--text-primary)', fontSize: 14,
+                        }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{fak.klijent ?? '—'}</div>
+                        <div style={{ color: izFaktureSelectedId === fak.id ? 'rgba(0,0,0,0.7)' : 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
+                          {fak.broj_fakture ? `Br. ${fak.broj_fakture}` : fak.datum} · {formatIznos(fak.iznos_rsd ?? 0)} RSD
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>Datum plaćanja</label>
+                  <input
+                    type="date"
+                    value={izFaktureDatumPlacanja}
+                    onChange={e => setIzFaktureDatumPlacanja(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 16, outline: 'none' }}
+                  />
+                  <button
+                    onClick={oznaciKaoPlacenoIzFakture}
+                    disabled={!izFaktureSelectedId || izFaktureLoading}
+                    style={{
+                      width: '100%', background: izFaktureSelectedId ? 'var(--accent)' : 'var(--bg-primary)', color: izFaktureSelectedId ? '#000' : 'var(--text-muted)',
+                      fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: izFaktureSelectedId && !izFaktureLoading ? 'pointer' : 'not-allowed',
+                    }}
+                  >
+                    {izFaktureLoading ? 'Čuvanje...' : 'Označi kao plaćeno'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -613,7 +805,8 @@ export default function Home() {
 
             <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT_6M} />
             <MonthlyObligations />
-            <SmartInsights onOpenQRModal={() => {}} />
+     
+<SmartInsights onOpenQRModal={() => {}} prihodi={fakture} prihodiTekucaGodina={fakture} godina={godina} />
           </>
         )}
 
@@ -645,16 +838,116 @@ export default function Home() {
         {/* ── PRIHODI ── */}
         {!loading && tab === 'fakture' && (
           <>
+            {/* Kartica: ukupan iznos u RSD i broj prihoda za izabrani period (godina + kvartal + pretraga) */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>UKUPNI PRIHODI {filterGodina}.</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>
+                  UKUPNI PRIHODI {filterGodina}.{filterKvartal !== 'sve' ? ` ${filterKvartal}` : ''}{searchKlijent.trim() ? ` · „${searchKlijent.trim()}”` : ''}
+                </p>
                 <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>
-                  {formatIznos(fakturePoGodini.reduce((s,f) => s + f.iznos_rsd, 0))} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>RSD</span>
+                  {formatIznos(ukupnoPretraga)} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>RSD</span>
                 </p>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>BROJ FAKTURA</p>
-                <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>{fakturePoGodini.length}</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>BROJ PRIHODA</p>
+                <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>{filtriraneFakturePoPretrazi.length}</p>
+              </div>
+            </div>
+
+            {/* Filter po godini — aktivna godina zeleno */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Godina:</span>
+              {[2022, 2023, 2024, 2025, 2026].map(g => (
+                <button
+                  key={g}
+                  onClick={() => setFilterGodina(g)}
+                  style={{
+                    background: filterGodina === g ? '#22c55e' : 'var(--bg-card)',
+                    color: filterGodina === g ? '#fff' : 'var(--text-muted)',
+                    fontWeight: filterGodina === g ? 700 : 400,
+                    fontSize: 13,
+                    padding: '6px 12px',
+                    borderRadius: 10,
+                    border: `1px solid ${filterGodina === g ? '#22c55e' : 'var(--border)'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+
+            {/* Filter po kvartalu */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {(['sve', 'Q1', 'Q2', 'Q3', 'Q4'] as const).map(k => (
+                <button
+                  key={k}
+                  onClick={() => setFilterKvartal(k)}
+                  style={{
+                    flex: 1,
+                    background: filterKvartal === k ? 'var(--accent)' : 'var(--bg-card)',
+                    color: filterKvartal === k ? '#000' : 'var(--text-muted)',
+                    fontWeight: filterKvartal === k ? 700 : 400,
+                    fontSize: 13,
+                    padding: '8px 0',
+                    borderRadius: 10,
+                    border: `1px solid ${filterKvartal === k ? 'var(--accent)' : 'var(--border)'}`,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {k === 'sve' ? 'Sve' : k}
+                </button>
+              ))}
+            </div>
+
+            {/* Pretraga po imenu klijenta */}
+            <input
+              type="text"
+              placeholder="Pretraži po imenu klijenta..."
+              value={searchKlijent}
+              onChange={e => setSearchKlijent(e.target.value)}
+              style={{
+                width: '100%', marginBottom: 16, boxSizing: 'border-box',
+                background: 'var(--bg-primary)', border: '1px solid var(--border)',
+                borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)',
+                fontSize: 14, outline: 'none',
+              }}
+            />
+
+            {/* Naslov PRIHODI + dva dugmeta: Iz fakture / Bez fakture */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>PRIHODI</span>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button
+                  onClick={() => setModalIzFaktureOpen(true)}
+                  style={{
+                    background: 'var(--accent)', color: 'var(--foreground)', fontWeight: 700, fontSize: 14,
+                    padding: '12px 18px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 2px 12px var(--accent-dim)',
+                    transition: 'transform 0.15s ease',
+                  }}
+                  onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
+                  onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                >
+                  <span style={{ fontSize: 18 }}>🧾</span>
+                  + Iz fakture
+                </button>
+                <button
+                  onClick={() => setPrihodiTab('dodaj')}
+                  style={{
+                    background: 'var(--bg-card)', color: 'var(--accent)', fontWeight: 700, fontSize: 14,
+                    padding: '12px 18px', borderRadius: 12, border: '2px solid var(--accent)', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8, boxShadow: '0 2px 8px var(--shadow)',
+                    transition: 'transform 0.15s ease',
+                  }}
+                  onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
+                  onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                >
+                  <span style={{ fontSize: 18 }}>💵</span>
+                  + Bez fakture
+                </button>
               </div>
             </div>
 
@@ -676,15 +969,69 @@ export default function Home() {
             {prihodiTab === 'dodaj' && (
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>NOVI PRIHOD</p>
-                <input type="text" placeholder="Ime klijenta" value={forma.klijent}
-                  onChange={e => setForma({ ...forma, klijent: e.target.value })} style={inp} />
+                <div style={{ position: 'relative', marginBottom: 12 }}>
+                  <input
+                    ref={klijentInputRef}
+                    type="text"
+                    placeholder="Ime klijenta"
+                    value={forma.klijent}
+                    onChange={e => {
+                      setForma({ ...forma, klijent: e.target.value })
+                      setKlijentDropdownOpen(true)
+                    }}
+                    onFocus={() => {
+                      if (klijentBlurTimerRef.current) {
+                        clearTimeout(klijentBlurTimerRef.current)
+                        klijentBlurTimerRef.current = null
+                      }
+                      setKlijentDropdownOpen(true)
+                    }}
+                    onBlur={() => {
+                      klijentBlurTimerRef.current = setTimeout(() => setKlijentDropdownOpen(false), 200)
+                    }}
+                    style={inp}
+                  />
+                  {klijentDropdownOpen && (() => {
+                    const q = forma.klijent.trim().toLowerCase()
+                    const filtered = q
+                      ? sviKlijenti.filter(k => k.toLowerCase().includes(q))
+                      : sviKlijenti
+                    if (filtered.length === 0) return null
+                    return (
+                      <div
+                        ref={klijentDropdownRef}
+                        style={{
+                          position: 'absolute', left: 0, right: 0, top: '100%', zIndex: 50,
+                          background: 'var(--bg-card)', border: '1px solid var(--border)', borderTop: 'none',
+                          borderRadius: '0 0 10px 10px', maxHeight: 200, overflowY: 'auto', boxShadow: '0 8px 16px rgba(0,0,0,0.15)',
+                        }}
+                      >
+                        {filtered.map(k => (
+                          <div
+                            key={k}
+                            role="option"
+                            onMouseDown={e => { e.preventDefault(); setForma({ ...forma, klijent: k }); setKlijentDropdownOpen(false) }}
+                            style={{
+                              padding: '10px 16px', fontSize: 14, color: 'var(--text-primary)', cursor: 'pointer',
+                              borderBottom: '1px solid var(--border)',
+                            }}
+                          >
+                            {k}
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
+                </div>
                 <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
                   <input type="number" placeholder="Iznos" value={forma.iznos}
                     onChange={e => setForma({ ...forma, iznos: e.target.value })}
                     style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }} />
                   <select value={forma.valuta} onChange={e => setForma({ ...forma, valuta: e.target.value as Valuta })}
-                    style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }}>
-                    <option>EUR</option><option>USD</option><option>RSD</option>
+                    style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, outline: 'none', minWidth: 80 }}>
+                    <option value="RSD">RSD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="USD">USD</option>
                   </select>
                 </div>
                 <input type="date" value={forma.datum} onChange={e => setForma({ ...forma, datum: e.target.value })}
@@ -707,31 +1054,6 @@ export default function Home() {
 
             {prihodiTab === 'lista' && (
               <>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Godina:</span>
-                  {[2022,2023,2024,2025,2026].map(g => (
-                    <button key={g} onClick={() => setFilterGodina(g)} style={{
-                      background: filterGodina === g ? 'var(--accent)' : 'var(--bg-card)',
-                      color: filterGodina === g ? '#000' : 'var(--text-muted)',
-                      fontWeight: filterGodina === g ? 700 : 400, fontSize: 13,
-                      padding: '6px 12px', borderRadius: 10,
-                      border: `1px solid ${filterGodina === g ? 'var(--accent)' : 'var(--border)'}`,
-                      cursor: 'pointer',
-                    }}>{g}</button>
-                  ))}
-                </div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  {(['sve','Q1','Q2','Q3','Q4'] as const).map(k => (
-                    <button key={k} onClick={() => setFilterKvartal(k)} style={{
-                      flex: 1, background: filterKvartal === k ? 'var(--accent)' : 'var(--bg-card)',
-                      color: filterKvartal === k ? '#000' : 'var(--text-muted)',
-                      fontWeight: filterKvartal === k ? 700 : 400, fontSize: 13,
-                      padding: '8px 0', borderRadius: 10,
-                      border: `1px solid ${filterKvartal === k ? 'var(--accent)' : 'var(--border)'}`,
-                      cursor: 'pointer',
-                    }}>{k === 'sve' ? 'Sve' : k}</button>
-                  ))}
-                </div>
                 {filtriraneFakture.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
                     <p style={{ fontSize: 40 }}>📋</p>
@@ -740,43 +1062,67 @@ export default function Home() {
                       + Dodaj prvi prihod
                     </button>
                   </div>
+                ) : filtriraneFakturePoPretrazi.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                    <p>Nema rezultata za pretragu „{searchKlijent.trim()}”</p>
+                  </div>
                 ) : (
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 130px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
                       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>DATUM</p>
                       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>KLIJENT</p>
                       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>IZNOS</p>
                       <div />
                     </div>
-                    {filtriraneFakture.map(f => (
-                      <div key={f.id}>
-                        {brisanjeFaktura === f.id ? (
-                          <div style={{ padding: '14px 16px', background: '#1a0a0a', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>Obrisati ovaj prihod?</p>
-                            <div style={{ display: 'flex', gap: 8 }}>
-                              <button onClick={() => setBrisanjeFaktura(null)} style={{ background: 'var(--bg-card)', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>Otkaži</button>
-                              <button onClick={() => obrisiFakturu(f.id)} style={{ background: '#ff4d4d', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>Da, obriši</button>
+                    {filtriraneFakturePoPretrazi.map(f => {
+                      const kursStr = parseKursIzNapomene(f.napomena)
+                      const napomenaBezKursa = f.napomena ? f.napomena.replace(/\s*\[Kurs 1 (?:EUR|USD) = [\d.,]+\s*RSD\]\s*/i, '').trim() : ''
+                      return (
+                        <div key={f.id}>
+                          {brisanjeFaktura === f.id ? (
+                            <div style={{ padding: '14px 16px', background: '#1a0a0a', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>Obrisati ovaj prihod?</p>
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button onClick={() => setBrisanjeFaktura(null)} style={{ background: 'var(--bg-card)', border: 'none', color: 'var(--text-muted)', fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>Otkaži</button>
+                                <button onClick={() => obrisiFakturu(f.id)} style={{ background: '#ff4d4d', border: 'none', color: '#fff', fontWeight: 700, fontSize: 12, padding: '6px 12px', borderRadius: 8, cursor: 'pointer' }}>Da, obriši</button>
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 130px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
-                            <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.datum}</p>
-                            <div>
-                              <p style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, margin: '0 0 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.klijent}</p>
-                              {f.napomena && <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>{f.napomena}</p>}
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}>
+                              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.datum}</p>
+                              <div>
+                                <p style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, margin: '0 0 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.klijent}</p>
+                                {napomenaBezKursa && <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>{napomenaBezKursa}</p>}
+                              </div>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, flexWrap: 'wrap' }}>
+                                  <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>{formatIznos(f.iznos)} {f.valuta}</span>
+                                  {f.valuta !== 'RSD' && (
+                                    <span
+                                      title={kursStr ? `Kurs 1 ${f.valuta} = ${parseFloat(kursStr).toFixed(2)} RSD` : 'Kurs NBS'}
+                                      style={{
+                                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                        minWidth: 20, height: 20, padding: '0 6px', borderRadius: 10,
+                                        background: 'var(--text-muted)', color: 'var(--bg-card)',
+                                        fontSize: 11, cursor: 'help', flexShrink: 0,
+                                      }}
+                                      aria-label={kursStr ? `Kurs 1 ${f.valuta} = ${parseFloat(kursStr).toFixed(2)} RSD` : 'Kurs valute'}
+                                    >
+                                      ℹ
+                                    </span>
+                                  )}
+                                </div>
+                                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '2px 0 0 0' }}>{formatIznos(f.iznos_rsd)} RSD</p>
+                              </div>
+                              <button onClick={() => setBrisanjeFaktura(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', textAlign: 'center' }}>×</button>
                             </div>
-                            <div style={{ textAlign: 'right' }}>
-                              <p style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13, margin: '0 0 2px 0' }}>{f.iznos} {f.valuta}</p>
-                              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>{formatIznos(f.iznos_rsd)} RSD</p>
-                            </div>
-                            <button onClick={() => setBrisanjeFaktura(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', textAlign: 'center' }}>×</button>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 130px 40px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
+                          )}
+                        </div>
+                      )
+                    })}
+                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px 40px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
                       <div /><div />
-                      <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 14, margin: 0, textAlign: 'right' }}>{formatIznos(ukupnoFilter)} RSD</p>
+                      <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 14, margin: 0, textAlign: 'right' }}>{formatIznos(ukupnoPretraga)} RSD</p>
                       <div />
                     </div>
                   </div>
@@ -801,9 +1147,9 @@ export default function Home() {
       <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
         {[
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
-          { key: 'fakture', icon: '📋', label: 'Prihodi' },
+          { key: 'fakture', icon: '📋', label: 'Prihodi', href: '/prihodi' },
           { key: 'izbor', icon: '＋', label: 'Dodaj' },
-          { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/faktura' },
+          { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/fakture' },
           { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
           { key: 'settings', icon: '⚙️', label: 'Profil', href: '/settings' },
         ].map(item => (

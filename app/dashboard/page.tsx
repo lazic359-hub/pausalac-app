@@ -1,9 +1,9 @@
 'use client'
 import SmartInsights from "@/components/SmartInsights";
+import MonthlyObligations, { type MonthlyObligationsHandle } from '@/components/MonthlyObligations'
 import { getEurToRsdRate } from '@/lib/exchange-rate'
 import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
-import MonthlyObligations from '../../components/MonthlyObligations'
 import PoresniKalendar from "@/components/PoresniKalendar";
 import { ThemeToggle } from '@/components/ThemeToggle'
 
@@ -23,6 +23,20 @@ type Faktura = {
   iznos_rsd: number
   datum: string
   napomena: string
+}
+
+/** Red iz tabele fakture (računi) — za modal "Iz fakture" */
+type FakturaInvoice = {
+  id: string
+  user_id: string
+  klijent: string | null
+  iznos: number | null
+  valuta: string | null
+  iznos_rsd: number | null
+  datum: string
+  napomena: string | null
+  broj_fakture: string | null
+  status?: string | null
 }
 
 const KURSEVI = { RSD: 1, EUR: 117, USD: 108 }
@@ -92,7 +106,7 @@ function LoginPage() {
       <div style={{ width: '100%', maxWidth: 400 }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <span style={{ fontSize: 40 }}>💼</span>
-          <p style={{ fontSize: 24, fontWeight: 800, color: '#00ffb3', margin: '8px 0 4px 0' }}>Paušalac</p>
+          <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)', margin: '8px 0 4px 0' }}>Paušalac</p>
           <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Evidencija prihoda za paušalce</p>
         </div>
 
@@ -119,14 +133,14 @@ function LoginPage() {
             </div>
             {!isRegister && (
               <div style={{ textAlign: 'right', marginBottom: 12 }}>
-                <button onClick={() => { setEkran('zaboravio'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: '#00ffb3', fontSize: 13, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                <button onClick={() => { setEkran('zaboravio'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}>
                   Zaboravio sam lozinku
                 </button>
               </div>
             )}
             {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
-            {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
-            <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 12, opacity: loading ? 0.7 : 1 }}>
+            {info && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
+            <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 12, opacity: loading ? 0.7 : 1 }}>
               {loading ? 'Učitavanje...' : isRegister ? 'Registruj se' : 'Prijavi se'}
             </button>
             <button onClick={() => { setIsRegister(!isRegister); setError(''); setInfo('') }} style={{ width: '100%', background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 14, padding: '12px', borderRadius: 10, cursor: 'pointer' }}>
@@ -144,8 +158,8 @@ function LoginPage() {
             <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 20px 0' }}>Unesite vaš email i poslaćemo vam link za reset lozinke.</p>
             <input type="email" placeholder="Vaš email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleResetEmail()} style={inp} />
             {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
-            {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
-            <button onClick={handleResetEmail} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
+            {info && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
+            <button onClick={handleResetEmail} disabled={loading} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
               {loading ? 'Slanje...' : 'Pošalji link za reset'}
             </button>
           </div>
@@ -176,8 +190,8 @@ function LoginPage() {
               </button>
             </div>
             {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '12px 0 12px 0' }}>⚠️ {error}</p>}
-            {info && <p style={{ color: '#00ffb3', fontSize: 13, margin: '12px 0 12px 0' }}>✉️ {info}</p>}
-            <button onClick={handleNovaLozinka} disabled={loading} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginTop: 16, opacity: loading ? 0.7 : 1 }}>
+            {info && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '12px 0 12px 0' }}>✉️ {info}</p>}
+            <button onClick={handleNovaLozinka} disabled={loading} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginTop: 16, opacity: loading ? 0.7 : 1 }}>
               {loading ? 'Čuvanje...' : 'Sačuvaj novu lozinku'}
             </button>
           </div>
@@ -301,12 +315,22 @@ export default function Home() {
   const [kursPrikaz, setKursPrikaz] = useState('')
   const [tab, setTab] = useState<'dashboard' | 'dodaj' | 'fakture' | 'settings'>('dashboard')
   const [godina, setGodina] = useState(new Date().getFullYear().toString())
+  const [prihodiTekucaGodina, setPrihodiTekucaGodina] = useState<Faktura[]>([])
+  const [klijentSuggestions, setKlijentSuggestions] = useState<string[]>([])
+  const [showKlijentDropdown, setShowKlijentDropdown] = useState(false)
+  const klijentDropdownRef = useRef<HTMLDivElement>(null)
+  const monthlyObRef = useRef<MonthlyObligationsHandle>(null)
   const [poresniPodaci, setPoresniPodaci] = useState<{
     tax_amount: number | null
     pio_amount: number | null
     health_amount: number | null
     unemployment_amount: number | null
   } | null>(null)
+  const [modalIzFaktureOpen, setModalIzFaktureOpen] = useState(false)
+  const [neplaceneFakture, setNeplaceneFakture] = useState<FakturaInvoice[]>([])
+  const [izFaktureSelectedId, setIzFaktureSelectedId] = useState<string | null>(null)
+  const [izFaktureDatumPlacanja, setIzFaktureDatumPlacanja] = useState(() => new Date().toISOString().split('T')[0])
+  const [izFaktureLoading, setIzFaktureLoading] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -325,6 +349,40 @@ export default function Home() {
       fetchPoresniPodaci()
     }
   }, [user, godina])
+
+  // Učitaj jedinstvena imena klijenata iz prihoda za autocomplete
+  useEffect(() => {
+    if (!user) return
+    const fetchKlijenti = async () => {
+      const { data } = await supabase
+        .from('prihodi')
+        .select('klijent')
+        .eq('user_id', user.id)
+      const unique = [...new Set((data || []).map((r: { klijent: string }) => r.klijent).filter(Boolean))] as string[]
+      setKlijentSuggestions(unique.sort((a, b) => a.localeCompare(b)))
+    }
+    fetchKlijenti()
+  }, [user])
+
+  useEffect(() => {
+    if (!modalIzFaktureOpen || !user) return
+    const load = async () => {
+      const { data } = await supabase
+        .from('fakture')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('datum', { ascending: false })
+      const sve = (data as FakturaInvoice[]) ?? []
+      const neplacene = sve.filter(f => {
+        const s = f.status == null ? '' : String(f.status).toLowerCase().trim()
+        return s !== 'placena' && s !== 'plaćena' && s !== 'paid'
+      })
+      setNeplaceneFakture(neplacene)
+      setIzFaktureSelectedId(null)
+      setIzFaktureDatumPlacanja(new Date().toISOString().split('T')[0])
+    }
+    load()
+  }, [modalIzFaktureOpen, user])
 
   useEffect(() => {
     const fetchKurs = async () => {
@@ -360,56 +418,99 @@ export default function Home() {
   }
 
   const fetchFakture = async () => {
+    if (!user) return
     setLoading(true)
-    const { data, error } = await supabase
-      .from('fakture')
-      .select('*')
-      .gte('datum', `${godina}-01-01`)
-      .lte('datum', `${godina}-12-31`)
-      .order('datum', { ascending: false })
-    if (!error && data) setFakture(data as Faktura[])
+    const tecucaGodina = new Date().getFullYear().toString()
+    const [resGodina, resTekuca] = await Promise.all([
+      supabase
+        .from('prihodi')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('datum', `${godina}-01-01`)
+        .lte('datum', `${godina}-12-31`)
+        .order('datum', { ascending: false }),
+      supabase
+        .from('prihodi')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('datum', `${tecucaGodina}-01-01`)
+        .lte('datum', `${tecucaGodina}-12-31`)
+        .order('datum', { ascending: false }),
+    ])
+    if (!resGodina.error && resGodina.data) setFakture(resGodina.data as Faktura[])
+    if (!resTekuca.error && resTekuca.data) setPrihodiTekucaGodina(resTekuca.data as Faktura[])
     setLoading(false)
   }
 
   const logout = async () => { await supabase.auth.signOut(); setFakture([]) }
 
-  const ukupnoRSD = fakture.reduce((s, f) => s + f.iznos_rsd, 0)
+  const ukupnoRSD = fakture.reduce((s, f) => s + (f.iznos_rsd ?? 0), 0)
   const ukupnoEUR = Math.round(ukupnoRSD / KURSEVI.EUR)
   const procenat = Math.min((ukupnoRSD / LIMIT) * 100, 100)
   const porez = Math.round(ukupnoRSD * 0.1)
   const pio = Math.round(ukupnoRSD * 0.24)
   const zdravstvo = Math.round(ukupnoRSD * 0.103)
   const ukupanPorez = porez + pio + zdravstvo
-  const neto = ukupnoRSD - ukupanPorez
-  const bojaBar = procenat > 90 ? '#ff4d4d' : procenat > 70 ? '#ffcc00' : '#00ffb3'
+  const t = poresniPodaci?.tax_amount ?? 0
+  const p = poresniPodaci?.pio_amount ?? 0
+  const h = poresniPodaci?.health_amount ?? 0
+  const u = poresniPodaci?.unemployment_amount ?? 0
+  const ukupnoMesecnoObaveze = t + p + h + u
+  const godisnjeObaveze = ukupnoMesecnoObaveze * 12
+  const ukupniRashodi = ukupnoMesecnoObaveze > 0 ? godisnjeObaveze : ukupanPorez
+  const neto = ukupnoRSD - ukupniRashodi
+  const bojaBar = procenat > 90 ? '#ff4d4d' : procenat >= 70 ? '#ffcc00' : 'var(--accent)'
+  const remainingLimit = Math.max(0, LIMIT - ukupnoRSD)
 
   const pre365 = new Date()
   pre365.setDate(pre365.getDate() - 365)
-  const prihod365 = fakture.filter(f => new Date(f.datum) >= pre365).reduce((s, f) => s + f.iznos_rsd, 0)
+  const prihod365 = fakture.filter(f => new Date(f.datum) >= pre365).reduce((s, f) => s + (f.iznos_rsd ?? 0), 0)
   const procenat365 = Math.min((ukupnoRSD / LIMIT_365) * 100, 100)
-  const bojaBar365 = procenat365 > 90 ? '#ff4d4d' : procenat365 > 70 ? '#ffcc00' : '#00ffb3'
+  const bojaBar365 = procenat365 > 90 ? '#ff4d4d' : procenat365 >= 70 ? '#ffcc00' : 'var(--accent)'
+  const remaining365 = Math.max(0, LIMIT_365 - prihod365)
 
   const dodajFakturu = async () => {
     if (!forma.klijent || !forma.iznos || !user) return
     let iznos_rsd = parseFloat(forma.iznos) * KURSEVI[forma.valuta]
+    let kursKoriscen = KURSEVI[forma.valuta]
     if (forma.valuta !== 'RSD' && forma.datum) {
       try {
-        const kurs = await getEurToRsdRate(forma.datum)
+        const kurs = forma.valuta === 'EUR' ? await getEurToRsdRate(forma.datum) : KURSEVI.USD
+        kursKoriscen = kurs
         iznos_rsd = parseFloat(forma.iznos) * kurs
       } catch {
         // ostaje fallback iz KURSEVI
       }
     }
-    const novaFaktura = {
+    const datum = forma.datum || new Date().toISOString().split('T')[0]
+    const klijentTrim = forma.klijent.trim()
+
+    // Provera: da li već postoji plaćena faktura sa istim podacima?
+    const { data: placeneFakture } = await supabase
+      .from('fakture')
+      .select('id, klijent, datum, iznos_rsd')
+      .eq('user_id', user.id)
+      .eq('status', 'placena')
+    const mozdaDuplikat = (placeneFakture ?? []).some(
+      (ff: { klijent: string | null; datum: string; iznos_rsd: number | null }) =>
+        (ff.klijent ?? '').trim() === klijentTrim &&
+        ff.datum === datum &&
+        Math.abs((ff.iznos_rsd ?? 0) - iznos_rsd) < 1
+    )
+    if (mozdaDuplikat && !window.confirm('Ovaj prihod možda već postoji kao faktura — da li želiš da nastaviš?')) return
+
+    const napomenaSaKursom = (forma.napomena || '').trim() +
+      (forma.valuta !== 'RSD' ? ` [Kurs 1 ${forma.valuta} = ${kursKoriscen} RSD]` : '')
+    const noviPrihod = {
       user_id: user.id,
       klijent: forma.klijent,
       iznos: parseFloat(forma.iznos),
       valuta: forma.valuta,
       iznos_rsd,
-      datum: forma.datum || new Date().toISOString().split('T')[0],
-      napomena: forma.napomena,
+      datum,
+      napomena: napomenaSaKursom || null,
     }
-    const { data, error } = await supabase.from('fakture').insert(novaFaktura).select().single()
+    const { data, error } = await supabase.from('prihodi').insert(noviPrihod).select().single()
     if (!error && data) {
       setFakture([data as Faktura, ...fakture])
       setForma({ klijent: '', iznos: '', valuta: 'EUR', datum: '', napomena: '' })
@@ -420,9 +521,45 @@ export default function Home() {
   }
 
   const obrisi = async (id: string) => {
-    const { error } = await supabase.from('fakture').delete().eq('id', id)
+    const { error } = await supabase.from('prihodi').delete().eq('id', id)
     if (!error) setFakture(fakture.filter(f => f.id !== id))
   }
+
+  const oznaciKaoPlacenoIzFakture = async () => {
+    if (!user || !izFaktureSelectedId || !izFaktureDatumPlacanja) return
+    const f = neplaceneFakture.find(x => x.id === izFaktureSelectedId)
+    if (!f) return
+    setIzFaktureLoading(true)
+    const iznosRsd = f.iznos_rsd ?? 0
+    const napomena = (f.napomena?.trim() ? f.napomena + ' ' : '') + (f.broj_fakture ? `[Faktura ${f.broj_fakture}]` : '[Plaćena faktura]')
+    await supabase.from('fakture').update({ status: 'placena' }).eq('id', f.id)
+    const { data: postojeca } = await supabase
+      .from('prihodi')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('klijent', f.klijent ?? '')
+      .eq('datum', izFaktureDatumPlacanja)
+      .gte('iznos_rsd', iznosRsd - 1)
+      .lte('iznos_rsd', iznosRsd + 1)
+      .limit(1)
+    if (!postojeca?.length) {
+      await supabase.from('prihodi').insert({
+        user_id: user.id,
+        klijent: f.klijent ?? '',
+        iznos: f.iznos ?? 0,
+        valuta: (f.valuta as 'RSD' | 'EUR' | 'USD') ?? 'RSD',
+        iznos_rsd: iznosRsd,
+        datum: izFaktureDatumPlacanja,
+        napomena: napomena.trim() || null,
+      })
+    }
+    setModalIzFaktureOpen(false)
+    setIzFaktureLoading(false)
+    fetchFakture()
+    setTab('fakture')
+  }
+
+  const formatIznosDashboard = (n: number) => new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
 
   const godinaOptions = Array.from({ length: 5 }, (_, i) => (new Date().getFullYear() - i).toString())
 
@@ -436,7 +573,7 @@ export default function Home() {
 
   if (authLoading) return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ color: '#00ffb3', fontSize: 32 }}>💼</span>
+      <span style={{ color: 'var(--accent)', fontSize: 32 }}>💼</span>
     </div>
   )
 
@@ -445,17 +582,76 @@ export default function Home() {
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
 
+      {/* Modal: Iz fakture */}
+      {modalIzFaktureOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          onClick={() => setModalIzFaktureOpen(false)}
+        >
+          <div
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, maxWidth: 440, width: '100%', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--text-primary)' }}>Prihod iz fakture</span>
+              <button onClick={() => setModalIzFaktureOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 24, cursor: 'pointer', lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 12px 0' }}>Izaberite neplaćenu fakturu i unesite datum plaćanja.</p>
+              {neplaceneFakture.length === 0 ? (
+                <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '24px 0', textAlign: 'center' }}>Nema neplaćenih faktura.</p>
+              ) : (
+                <>
+                  <div style={{ marginBottom: 12 }}>
+                    {neplaceneFakture.map(fak => (
+                      <div
+                        key={fak.id}
+                        onClick={() => setIzFaktureSelectedId(izFaktureSelectedId === fak.id ? null : fak.id)}
+                        style={{
+                          padding: '12px 14px', marginBottom: 8, background: izFaktureSelectedId === fak.id ? 'var(--accent)' : 'var(--bg-primary)',
+                          border: `2px solid ${izFaktureSelectedId === fak.id ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 10, cursor: 'pointer',
+                          color: izFaktureSelectedId === fak.id ? '#000' : 'var(--text-primary)', fontSize: 14,
+                        }}
+                      >
+                        <div style={{ fontWeight: 600 }}>{fak.klijent ?? '—'}</div>
+                        <div style={{ color: izFaktureSelectedId === fak.id ? 'rgba(0,0,0,0.7)' : 'var(--text-muted)', fontSize: 12, marginTop: 2 }}>
+                          {fak.broj_fakture ? `Br. ${fak.broj_fakture}` : fak.datum} · {formatIznosDashboard(fak.iznos_rsd ?? 0)} RSD
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 12, marginBottom: 6 }}>Datum plaćanja</label>
+                  <input
+                    type="date"
+                    value={izFaktureDatumPlacanja}
+                    onChange={e => setIzFaktureDatumPlacanja(e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 16, outline: 'none' }}
+                  />
+                  <button
+                    onClick={oznaciKaoPlacenoIzFakture}
+                    disabled={!izFaktureSelectedId || izFaktureLoading}
+                    style={{ width: '100%', background: izFaktureSelectedId ? 'var(--accent)' : 'var(--bg-primary)', color: izFaktureSelectedId ? '#000' : 'var(--text-muted)', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: izFaktureSelectedId && !izFaktureLoading ? 'pointer' : 'not-allowed' }}
+                  >
+                    {izFaktureLoading ? 'Čuvanje...' : 'Označi kao plaćeno'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>💼</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: '#00ffb3' }}>Paušalac</span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušalac</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <select
             value={godina}
             onChange={e => setGodina(e.target.value)}
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '4px 12px', color: '#00ffb3', fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
+            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '4px 12px', color: 'var(--accent)', fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
           >
             {godinaOptions.map(g => <option key={g} value={g}>{g}.</option>)}
           </select>
@@ -476,21 +672,20 @@ export default function Home() {
           <>
             {/* Ukupni prihod kartica */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, background: '#00ffb3', borderRadius: '50%', filter: 'blur(80px)', opacity: 0.08 }} />
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>UKUPNI PRIHOD · {godina}.</p>
-                  <p style={{ fontSize: 36, fontWeight: 800, color: '#00ffb3', margin: '0 0 4px 0', textShadow: '0 0 30px #00ffb340' }}>
-                    {ukupnoRSD.toLocaleString()} <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>RSD</span>
-                  </p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 20px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
-                </div>
-                <button
-                  onClick={() => generatePDF(fakture, godina, user.email || '', { ukupnoRSD, porez, pio, zdravstvo, neto, procenat })}
-                  style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 10, padding: '8px 14px', color: 'var(--accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
-                >
-                  📄 Izvezi PDF
-                </button>
+              <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(80px)', opacity: 0.08 }} />
+              <button
+                type="button"
+                onClick={() => window.location.href = '/fakture'}
+                style={{ position: 'absolute', top: 16, right: 16, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 12px', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                {fakture.length === 1 ? '1 faktura' : fakture.length >= 2 && fakture.length <= 4 ? `${fakture.length} fakture` : `${fakture.length} faktura`}
+              </button>
+              <div>
+                <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>UKUPNI PRIHOD · {godina}.</p>
+                <p style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent)', margin: '0 0 4px 0', textShadow: '0 0 30px #00ffb340' }}>
+                  {ukupnoRSD.toLocaleString()} <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>RSD</span>
+                </p>
+                <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 20px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
               </div>
 
               {/* 6M bar */}
@@ -498,8 +693,9 @@ export default function Home() {
               <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 6, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${procenat}%`, background: bojaBar, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar}`, transition: 'width 0.5s ease' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>
                 <span style={{ color: bojaBar }}>{ukupnoRSD.toLocaleString()} RSD ({procenat.toFixed(1)}%)</span>
+                <span>Još {remainingLimit.toLocaleString()} RSD do limita</span>
                 <span>6.000.000 RSD</span>
               </div>
 
@@ -508,8 +704,9 @@ export default function Home() {
               <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 6, overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: `${procenat365}%`, background: bojaBar365, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar365}`, transition: 'width 0.5s ease' }} />
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
                 <span style={{ color: bojaBar365 }}>{prihod365.toLocaleString()} RSD ({procenat365.toFixed(1)}%)</span>
+                <span>Još {remaining365.toLocaleString()} RSD do limita</span>
                 <span>8.000.000 RSD</span>
               </div>
 
@@ -525,23 +722,6 @@ export default function Home() {
               )}
             </div>
 
-            {/* Grid kartice */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              {[
-                { label: 'NETO PRIHOD', value: neto, boja: '#a855f7', sub: 'RSD' },
-                { label: 'UKUPAN POREZ', value: ukupanPorez, boja: '#f59e0b', sub: 'RSD' },
-                { label: 'PIO DOPRINOS', value: pio, boja: '#3b82f6', sub: 'RSD (24%)' },
-                { label: 'BROJ FAKTURA', value: fakture.length, boja: '#00ffb3', sub: 'unetih', big: true },
-              ].map(item => (
-                <div key={item.label} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -20, right: -20, width: 80, height: 80, background: item.boja, borderRadius: '50%', filter: 'blur(40px)', opacity: 0.15 }} />
-                  <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>{item.label}</p>
-                  <p style={{ fontSize: item.big ? 36 : 22, fontWeight: item.big ? 800 : 700, color: item.boja, margin: 0 }}>{item.value.toLocaleString()}</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>{item.sub}</p>
-                </div>
-              ))}
-            </div>
-
             {/* Obaveze iz poreskog rešenja */}
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
               <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE IZ PORESKOG REŠENJA</p>
@@ -550,7 +730,7 @@ export default function Home() {
                   <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 12px 0' }}>
                     📋 Unesi svoje obaveze iz poreskog rešenja u Podešavanjima profila
                   </p>
-                  <a href="/settings" style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 13, padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}>
+                  <a href="/settings" style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 13, padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}>
                     Otvori podešavanja →
                   </a>
                 </div>
@@ -579,7 +759,7 @@ export default function Home() {
                     ))}
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 4px 0' }}>
                       <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14 }}>UKUPNO MESEČNO</span>
-                      <span style={{ color: '#00ffb3', fontWeight: 800, fontSize: 16 }}>{ukupnoMesecno.toLocaleString()} RSD</span>
+                      <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 16 }}>{ukupnoMesecno.toLocaleString()} RSD</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                       <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>UKUPNO GODIŠNJE</span>
@@ -591,23 +771,74 @@ export default function Home() {
             </div>
 
             <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT} />
-            <MonthlyObligations />
-            <SmartInsights onOpenQRModal={() => {}} />
+            <MonthlyObligations ref={monthlyObRef} />
+            <SmartInsights onOpenQRModal={() => monthlyObRef.current?.openUplatniceModal()} prihodi={fakture} prihodiTekucaGodina={prihodiTekucaGodina} godina={godina} />
           </>
         )}
 
         {!loading && tab === 'dodaj' && (
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>NOVI PRIHOD</p>
-            {[
-              { placeholder: 'Ime klijenta', key: 'klijent', type: 'text' },
-            ].map(field => (
-              <input key={field.key} type={field.type} placeholder={field.placeholder}
-                value={forma[field.key as keyof typeof forma]}
-                onChange={e => setForma({ ...forma, [field.key]: e.target.value })}
-                style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }}
+            <div ref={klijentDropdownRef} style={{ position: 'relative', marginBottom: 12 }}>
+              <input
+                type="text"
+                placeholder="Ime klijenta"
+                value={forma.klijent}
+                onChange={e => {
+                  setForma({ ...forma, klijent: e.target.value })
+                  setShowKlijentDropdown(true)
+                }}
+                onFocus={() => setShowKlijentDropdown(true)}
+                onBlur={() => setTimeout(() => setShowKlijentDropdown(false), 200)}
+                style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box', outline: 'none' }}
               />
-            ))}
+              {showKlijentDropdown && (() => {
+                const q = (forma.klijent || '').trim().toLowerCase()
+                const filtered = q
+                  ? klijentSuggestions.filter(k => k.toLowerCase().includes(q))
+                  : klijentSuggestions
+                if (filtered.length === 0) return null
+                return (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      marginTop: 4,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                      zIndex: 50,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                    }}
+                  >
+                    {filtered.map(k => (
+                      <button
+                        key={k}
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); setForma({ ...forma, klijent: k }); setShowKlijentDropdown(false) }}
+                        style={{
+                          width: '100%',
+                          textAlign: 'left',
+                          padding: '10px 16px',
+                          border: 'none',
+                          background: 'none',
+                          color: 'var(--text-primary)',
+                          fontSize: 14,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {k}
+                      </button>
+                    ))}
+                  </div>
+                )
+              })()}
+            </div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
               <input type="number" placeholder="Iznos" value={forma.iznos} onChange={e => setForma({ ...forma, iznos: e.target.value })}
                 style={{ flex: 1, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, outline: 'none' }}
@@ -632,7 +863,7 @@ export default function Home() {
             <input type="text" placeholder="Napomena (opciono)" value={forma.napomena} onChange={e => setForma({ ...forma, napomena: e.target.value })}
               style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 20, boxSizing: 'border-box', outline: 'none' }}
             />
-            <button onClick={dodajFakturu} style={{ width: '100%', background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340' }}>
+            <button onClick={dodajFakturu} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340' }}>
               + Dodaj prihod
             </button>
           </div>
@@ -640,6 +871,40 @@ export default function Home() {
 
         {!loading && tab === 'fakture' && (
           <div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+              <button
+                type="button"
+                onClick={() => setModalIzFaktureOpen(true)}
+                style={{
+                  flex: 1, background: 'var(--accent)', color: 'var(--foreground)', fontWeight: 700, fontSize: 15,
+                  padding: '14px 20px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  boxShadow: '0 2px 12px var(--accent-dim)', transition: 'transform 0.15s ease',
+                }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+              >
+                <span style={{ fontSize: 20, lineHeight: 1 }}>🧾</span>
+                <span>+ Iz fakture</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setTab('dodaj')}
+                style={{
+                  flex: 1, background: 'var(--bg-card)', color: 'var(--accent)', fontWeight: 700, fontSize: 15,
+                  padding: '14px 20px', borderRadius: 12, border: '2px solid var(--accent)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                  boxShadow: '0 2px 8px var(--shadow)', transition: 'transform 0.15s ease',
+                }}
+                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)' }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+              >
+                <span style={{ fontSize: 20, lineHeight: 1 }}>💵</span>
+                <span>+ Bez fakture</span>
+              </button>
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>PRIHODI {godina}. ({fakture.length})</p>
               {fakture.length > 0 && (
@@ -667,7 +932,7 @@ export default function Home() {
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                       <div style={{ textAlign: 'right' }}>
-                        <p style={{ color: '#00ffb3', fontWeight: 700, margin: '0 0 2px 0' }}>{f.iznos} {f.valuta}</p>
+                        <p style={{ color: 'var(--accent)', fontWeight: 700, margin: '0 0 2px 0' }}>{f.iznos} {f.valuta}</p>
                         <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.iznos_rsd.toLocaleString()} RSD</p>
                       </div>
                       <button onClick={() => obrisi(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>×</button>
@@ -683,7 +948,7 @@ export default function Home() {
       {tab === 'settings' && (
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <p style={{ color: 'var(--text-muted)', fontSize: 14, marginBottom: 16 }}>Podešavanja profila</p>
-          <a href="/settings" style={{ background: '#00ffb3', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px 32px', borderRadius: 12, textDecoration: 'none' }}>
+          <a href="/settings" style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px 32px', borderRadius: 12, textDecoration: 'none' }}>
             Otvori podešavanja →
           </a>
         </div>
@@ -695,12 +960,12 @@ export default function Home() {
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
           { key: 'fakture', icon: '📋', label: 'Prihodi' },
           { key: 'dodaj', icon: '＋', label: 'Dodaj' },
-          { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/faktura' },
+          { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/fakture' },
           { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
           { key: 'settings', icon: '⚙️', label: 'Profil', href: '/settings' },
         ].map(item => (
           <button key={item.key} onClick={() => (item as any).href ? window.location.href = (item as any).href : setTab(item.key as any)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? '#00ffb3' : 'var(--text-muted)', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
             <span style={{ fontSize: 22 }}>{item.icon}</span>
             {item.label}
           </button>

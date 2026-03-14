@@ -76,13 +76,13 @@ export default function ResetPasswordPage() {
         <button 
           onClick={handleUpdate} 
           disabled={loading || !pass || pass !== confirmPass}
-          style={{ width: '100%', padding: 14, background: '#00c896', color: '#000', fontWeight: 'bold', borderRadius: 10, border: 'none', cursor: 'pointer', opacity: (loading || pass !== confirmPass) ? 0.5 : 1, marginTop: 8 }}
+          style={{ width: '100%', padding: 14, background: 'var(--accent)', color: '#000', fontWeight: 'bold', borderRadius: 10, border: 'none', cursor: 'pointer', opacity: (loading || pass !== confirmPass) ? 0.5 : 1, marginTop: 8 }}
         >
           {loading ? 'Čuvanje...' : 'Sačuvaj lozinku'}
         </button>
         
         {info && (
-          <div style={{ marginTop: 20, padding: 12, borderRadius: 8, background: info.includes('Greška') ? '#ff4d4d20' : '#00c89620', color: info.includes('Greška') ? '#ff6b6b' : '#00c896', fontSize: 13, textAlign: 'center' }}>
+          <div style={{ marginTop: 20, padding: 12, borderRadius: 8, background: info.includes('Greška') ? '#ff4d4d20' : 'rgba(0,201,138,0.12)', color: info.includes('Greška') ? '#ff6b6b' : 'var(--accent)', fontSize: 13, textAlign: 'center' }}>
             {info}
           </div>
         )}
