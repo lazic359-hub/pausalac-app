@@ -16,11 +16,11 @@ export function BottomNav() {
   const pathnameStr = pathname ?? ''
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
-  const isActive = (item: (typeof NAV_ITEMS)[number]) => {
-    if (item.key === 'dashboard') return pathnameStr === '/' && tab !== 'izbor'
-    if (item.key === 'dodaj') return pathnameStr === '/' && tab === 'izbor'
-    if (item.href === '/') return pathnameStr === '/'
-    return pathnameStr.startsWith(item.href)
+  const isActive = (item: { key: string; href: string }) => {
+    if (item.key === 'dashboard') return pathname === '/' && tab === 'izbor'
+    if (item.key === 'dodaj') return pathname === '/' && tab === 'izbor'
+    if ((item.href as string) === '/') return pathname === '/'
+    return pathname.startsWith(item.href as string)
   }
 
   return (
