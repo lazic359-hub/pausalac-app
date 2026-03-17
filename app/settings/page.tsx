@@ -32,15 +32,19 @@ const kartica: React.CSSProperties = {
   position: 'relative', overflow: 'hidden',
 }
 
-function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {}, disabled = false }: {
+function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {}, disabled = false, onBlur, onKeyDown }: {
   value: string; onChange: (v: string) => void; placeholder?: string
   type?: string; hasError?: boolean; style?: React.CSSProperties; disabled?: boolean
+  onBlur?: () => void
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
   const [focused, setFocused] = useState(false)
   return (
     <input type={type} placeholder={placeholder} value={value}
       onChange={e => onChange(e.target.value)}
-      onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => { setFocused(false); onBlur?.() }}
+      onKeyDown={onKeyDown}
       disabled={disabled}
       readOnly={disabled}
       style={{
@@ -59,6 +63,26 @@ function Greska({ tekst }: { tekst: string }) {
   return <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
 }
 
+type ToastType = 'success' | 'error'
+function Toast({ msg, type, onClose }: { msg: string; type: ToastType; onClose: () => void }) {
+  const colors = type === 'success'
+    ? { bg: 'rgba(0,255,179,0.1)', border: 'rgba(0,255,179,0.3)', color: 'var(--accent)' }
+    : { bg: 'rgba(255,60,60,0.1)', border: 'rgba(255,60,60,0.3)', color: '#ff5555' }
+  return (
+    <div style={{
+      position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
+      background: colors.bg, border: `1px solid ${colors.border}`, color: colors.color,
+      borderRadius: 12, padding: '12px 20px', display: 'flex', alignItems: 'center', gap: 10,
+      fontSize: 14, fontWeight: 700, zIndex: 9999,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.25)',
+      maxWidth: 'min(92vw, 560px)',
+    }}>
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg}</span>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', marginLeft: 8, fontSize: 16, opacity: 0.75 }}>×</button>
+    </div>
+  )
+}
+
 export default function SettingsPage() {
   const [profil, setProfil] = useState<Profil>(PRAZAN_PROFIL)
   const [originalProfil, setOriginalProfil] = useState<Profil>(PRAZAN_PROFIL)
@@ -68,6 +92,10 @@ export default function SettingsPage() {
   const [greske, setGreske] = useState<string[]>([])
   const [ucitavanje, setUcitavanje] = useState(true)
   const [showUputstvo, setShowUputstvo] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null)
+  const [aprLoading, setAprLoading] = useState(false)
+  const [lastAprPib, setLastAprPib] = useState<string | null>(null)
+  const [aprAbort, setAprAbort] = useState<AbortController | null>(null)
 
   useEffect(() => {
     ucitajPodatke()
@@ -127,6 +155,111 @@ export default function SettingsPage() {
   const setBool = (key: 'reminder3Dana' | 'reminder1Dan') => () => setProfil(p => ({ ...p, [key]: !p[key] }))
   const ima = (key: string) => greske.includes(key)
 
+  const showToast = (msg: string, type: ToastType) => {
+    setToast({ msg, type })
+    setTimeout(() => setToast(null), 3500)
+  }
+
+  const digitsOnly = (s: string) => (s || '').replace(/\D/g, '')
+
+  const pickFirstString = (...vals: unknown[]) => {
+    for (const v of vals) {
+      if (typeof v === 'string' && v.trim()) return v.trim()
+    }
+    return ''
+  }
+
+  const subjectFromAprPayload = (payload: any) => {
+    if (!payload) return null
+    if (Array.isArray(payload)) return payload[0] ?? null
+    if (Array.isArray(payload?.items)) return payload.items[0] ?? null
+    if (Array.isArray(payload?.result)) return payload.result[0] ?? null
+    if (Array.isArray(payload?.Results)) return payload.Results[0] ?? null
+    if (payload?.subject) return payload.subject
+    return payload
+  }
+
+  const formatAddress = (subj: any) => {
+    const addr = subj?.Address ?? subj?.address ?? subj?.Sediste ?? subj?.sediste ?? subj?.Headquarters ?? subj?.headquarters
+    if (!addr) return ''
+    if (typeof addr === 'string') return addr.trim()
+    const full = pickFirstString(
+      addr.FullAddress, addr.fullAddress, addr.Address, addr.address, addr.Adresa, addr.adresa,
+      addr.Formatted, addr.formatted, addr.Text, addr.text
+    )
+    if (full) return full
+    const parts = [
+      pickFirstString(addr.Street, addr.street, addr.Ulica, addr.ulica),
+      pickFirstString(addr.Number, addr.number, addr.Broj, addr.broj),
+      pickFirstString(addr.City, addr.city, addr.Mesto, addr.mesto),
+      pickFirstString(addr.Municipality, addr.municipality, addr.Opstina, addr.opstina),
+      pickFirstString(addr.PostalCode, addr.postalCode, addr.PostCode, addr.postCode, addr.PostanskiBroj, addr.postanskiBroj),
+    ].filter(Boolean)
+    return parts.join(', ')
+  }
+
+  const preuzmiIzApr = async (trigger: 'blur' | 'enter') => {
+    if (!editMode) return
+    const pibDigits = digitsOnly(profil.pib)
+    if (!pibDigits) return
+    if (pibDigits.length !== 9) return
+    if (pibDigits === lastAprPib && (profil.nazivFirme || profil.maticniBroj || profil.sediste)) return
+
+    try {
+      aprAbort?.abort()
+      const controller = new AbortController()
+      setAprAbort(controller)
+      setAprLoading(true)
+
+      const res = await fetch(`/api/apr?pib=${encodeURIComponent(pibDigits)}`, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' },
+      })
+
+      if (!res.ok) {
+        if (res.status === 404) throw new Error('NOT_FOUND')
+        if (res.status === 503) throw new Error('APR_UNAVAILABLE')
+        if (res.status === 504) throw new Error('APR_TIMEOUT')
+        throw new Error(`APR_${res.status}`)
+      }
+
+      const payload = await res.json()
+      const subj = subjectFromAprPayload(payload)
+      if (!subj) throw new Error('NOT_FOUND')
+
+      const naziv = pickFirstString(
+        subj.Naziv, subj.naziv, subj.SubjectName, subj.subjectName,
+        subj.Name, subj.name, subj.FullName, subj.fullName, subj.BusinessName, subj.businessName
+      )
+      const maticni = pickFirstString(
+        subj.MaticniBroj, subj.maticniBroj, subj.RegistrationNumber, subj.registrationNumber,
+        subj.MB, subj.mb, subj.CompanyNumber, subj.companyNumber
+      )
+      const adresa = formatAddress(subj)
+
+      if (!naziv && !maticni && !adresa) throw new Error('NOT_FOUND')
+
+      setProfil(p => ({
+        ...p,
+        pib: pibDigits,
+        nazivFirme: naziv || p.nazivFirme,
+        maticniBroj: maticni || p.maticniBroj,
+        sediste: adresa || p.sediste,
+      }))
+      setLastAprPib(pibDigits)
+      showToast('Podaci uspešno preuzeti sa APR ✅', 'success')
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return
+      if (String(e?.message) === 'NOT_FOUND') showToast('PIB nije pronađen u APR registru', 'error')
+      else if (String(e?.message) === 'APR_UNAVAILABLE') showToast('APR servis trenutno nedostupan', 'error')
+      else if (String(e?.message) === 'APR_TIMEOUT') showToast('APR servis ne odgovara (timeout)', 'error')
+      else showToast('Greška pri preuzimanju podataka sa APR', 'error')
+    } finally {
+      setAprLoading(false)
+    }
+  }
+
   const sacuvaj = async () => {
     const nova: string[] = []
     if (!profil.nazivFirme) nova.push('nazivFirme')
@@ -168,6 +301,8 @@ export default function SettingsPage() {
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
+
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <button onClick={() => window.history.back()}
@@ -243,7 +378,33 @@ export default function SettingsPage() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
               <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>PIB</p>
-              <Input value={profil.pib} onChange={set('pib')} placeholder="123456789" hasError={ima('pib')} disabled={!editMode} />
+              <div style={{ position: 'relative' }}>
+                <Input
+                  value={profil.pib}
+                  onChange={set('pib')}
+                  placeholder="123456789"
+                  hasError={ima('pib')}
+                  disabled={!editMode}
+                  style={{ paddingRight: 44 }}
+                  onBlur={() => preuzmiIzApr('blur')}
+                  onKeyDown={(e) => { if (e.key === 'Enter') preuzmiIzApr('enter') }}
+                />
+                {aprLoading && (
+                  <span
+                    aria-label="Učitavanje podataka sa APR"
+                    style={{
+                      position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                      width: 16, height: 16, borderRadius: '50%',
+                      border: '2px solid var(--border)', borderTopColor: 'var(--accent)',
+                      animation: 'apr-spin 0.8s linear infinite',
+                      pointerEvents: 'none',
+                    }}
+                  />
+                )}
+              </div>
+              <style>{`
+                @keyframes apr-spin { to { transform: translateY(-50%) rotate(360deg); } }
+              `}</style>
               {ima('pib') && <Greska tekst="Obavezno polje" />}
             </div>
             <div>
