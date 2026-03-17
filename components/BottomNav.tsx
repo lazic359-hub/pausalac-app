@@ -1,26 +1,27 @@
 'use client'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
+import { Suspense } from 'react'
 
 const NAV_ITEMS = [
   { key: 'dashboard', icon: '📊', label: 'Pregled', href: '/' },
   { key: 'prihodi', icon: '📋', label: 'Prihodi', href: '/prihodi' },
-  { key: 'dodaj', icon: '＋', label: 'Dodaj', href: '/' }, // na home se otvara tab
+  { key: 'dodaj', icon: '+', label: 'Dodaj', href: '/' },
   { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/fakture' },
   { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
   { key: 'settings', icon: '⚙️', label: 'Profil', href: '/settings' },
 ] as const
 
-export function BottomNav() {
+function BottomNavInner() {
   const pathname = usePathname()
-  const pathnameStr = pathname ?? ''
   const searchParams = useSearchParams()
   const tab = searchParams.get('tab')
+
   const isActive = (item: { key: string; href: string }) => {
-    if (item.key === 'dashboard') return pathname === '/' && tab === 'izbor'
+    if (item.key === 'dashboard') return pathname === '/' && tab !== 'izbor'
     if (item.key === 'dodaj') return pathname === '/' && tab === 'izbor'
-    if ((item.href as string) === '/') return pathname === '/'
-    return pathname.startsWith(item.href as string)
+    if (item.href === '/') return pathname === '/'
+    return pathname.startsWith(item.href)
   }
 
   return (
@@ -56,13 +57,21 @@ export function BottomNav() {
                 textDecoration: 'none',
               }}
             >
-              <span className="nav-item-icon" style={{ fontSize: 22 }}>{item.icon}</span>
-              <span className="nav-item-label">{item.label}</span>
+              <span style={{ fontSize: 22 }}>{item.icon}</span>
+              <span>{item.label}</span>
             </Link>
           )
         })}
       </nav>
       <div className="page-content-spacer" />
     </>
+  )
+}
+
+export function BottomNav() {
+  return (
+    <Suspense fallback={null}>
+      <BottomNavInner />
+    </Suspense>
   )
 }

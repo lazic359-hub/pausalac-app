@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient, User } from '@supabase/supabase-js'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -198,7 +198,7 @@ function LoginPage() {
   )
 }
 
-export default function Home() {
+function HomeContent() {
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [loading, setLoading] = useState(false)
@@ -1168,5 +1168,13 @@ export default function Home() {
       </div>
       <div className="page-content-spacer" />
     </div>
+  )
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeContent />
+    </Suspense>
   )
 }
