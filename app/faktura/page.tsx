@@ -45,19 +45,17 @@ const kartica: React.CSSProperties = {
   position: 'relative', overflow: 'hidden',
 }
 
-function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {}, onBlur, onKeyDown }: {
+function Input({ value, onChange, onFocus, onBlur, placeholder, type = 'text', hasError = false, style = {} }: {
   value: string; onChange: (v: string) => void; placeholder?: string
+  onFocus?: () => void; onBlur?: () => void
   type?: string; hasError?: boolean; style?: React.CSSProperties
-  onBlur?: () => void
-  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
   const [focused, setFocused] = useState(false)
   return (
     <input type={type} placeholder={placeholder} value={value}
       onChange={e => onChange(e.target.value)}
-      onFocus={() => setFocused(true)}
+      onFocus={() => { setFocused(true); onFocus?.() }}
       onBlur={() => { setFocused(false); onBlur?.() }}
-      onKeyDown={onKeyDown}
       style={{
         width: '100%', background: 'var(--bg-primary)',
         border: `1px solid ${hasError ? '#ff4d4d' : focused ? '#00ffb360' : 'var(--border)'}`,
@@ -71,22 +69,6 @@ function Input({ value, onChange, placeholder, type = 'text', hasError = false, 
 
 function Greska({ tekst }: { tekst: string }) {
   return <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
-}
-
-type ToastType = 'success' | 'error'
-function Toast({ msg, type, onClose }: { msg: string; type: ToastType; onClose: () => void }) {
-  const isSuccess = type === 'success'
-  return (
-    <div style={{
-      position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
-      background: isSuccess ? 'rgba(34, 197, 94, 0.95)' : 'rgba(239, 68, 68, 0.95)',
-      color: '#fff', fontWeight: 700, fontSize: 14, padding: '12px 20px', borderRadius: 12,
-      boxShadow: '0 8px 24px rgba(0,0,0,0.25)', maxWidth: 'min(92vw, 400px)',
-    }}>
-      {msg}
-      <button onClick={onClose} style={{ marginLeft: 12, background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16, opacity: 0.9 }}>×</button>
-    </div>
-  )
 }
 
 function ValutaPicker({ valuta, onChange }: { valuta: Valuta; onChange: (v: Valuta) => void }) {
@@ -134,8 +116,6 @@ export default function FakturaPage() {
   const klijentDropdownRef = useRef<HTMLDivElement>(null)
   const [rokPlacanja, setRokPlacanja] = useState<'7' | '15' | '30' | '60' | 'custom'>('30')
   const [rokPlacanjaDatum, setRokPlacanjaDatum] = useState('')
-  const [aprKlijentLoading, setAprKlijentLoading] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null)
   const rokPlacanjaAktuelanDatum = (() => {
     if (rokPlacanja === 'custom') return rokPlacanjaDatum || ''
     const d = new Date(datum)
@@ -192,12 +172,6 @@ export default function FakturaPage() {
     setSacuvano(false)
   }, [valuta])
 
-  useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 3500)
-    return () => clearTimeout(t)
-  }, [toast])
-
   // Zatvori autocomplete pri kliku van
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -240,69 +214,6 @@ export default function FakturaPage() {
     setStavke(stavke.map(s => s.id === id ? { ...s, [polje]: v } : s))
   const ima = (key: string) => greske.includes(key)
 
-  const digitsOnly = (s: string) => (s || '').replace(/\D/g, '')
-  const pickStr = (...vals: unknown[]) => {
-    for (const v of vals) {
-      if (typeof v === 'string' && v.trim()) return v.trim()
-    }
-    return ''
-  }
-
-  const preuzmiKlijentaIzApr = async () => {
-    const pibDigits = digitsOnly(klijentPib)
-    if (pibDigits.length !== 9) return
-    setAprKlijentLoading(true)
-    setToast(null)
-    try {
-      const res = await fetch(`/api/apr-subjekat?pib=${encodeURIComponent(pibDigits)}`, { method: 'GET', headers: { Accept: 'application/json' } })
-      if (!res.ok) {
-        if (res.status === 404) {
-          setToast({ msg: 'PIB nije pronađen u APR registru', type: 'error' })
-          return
-        }
-        if (res.status === 503) {
-          setToast({ msg: 'APR servis trenutno nedostupan', type: 'error' })
-          return
-        }
-        if (res.status === 504) {
-          setToast({ msg: 'APR servis ne odgovara (timeout)', type: 'error' })
-          return
-        }
-        setToast({ msg: 'Greška pri preuzimanju podataka sa APR', type: 'error' })
-        return
-      }
-      const data = await res.json()
-      const subj = data?.items?.[0] ?? data?.result?.[0] ?? data?.Results?.[0] ?? (Array.isArray(data) ? data[0] : null) ?? data?.data ?? data?.subject ?? data
-      if (!subj || typeof subj !== 'object') {
-        setToast({ msg: 'PIB nije pronađen u APR registru', type: 'error' })
-        return
-      }
-      const naziv = pickStr(subj.naziv, subj.Naziv, subj.name, subj.subjectName, subj.naziv_firme, subj.businessName)
-      let adresa = pickStr(subj.adresa, subj.Adresa, subj.address, subj.fullAddress, subj.adresa_sedista)
-      if (!adresa && subj.Address != null && typeof subj.Address === 'object')
-        adresa = pickStr((subj.Address as any).FullAddress, (subj.Address as any).Address, (subj.Address as any).adresa)
-      if (!adresa && subj.sediste != null) {
-        if (typeof subj.sediste === 'string') adresa = subj.sediste.trim()
-        else if (typeof subj.sediste === 'object')
-          adresa = pickStr((subj.sediste as any).adresa, (subj.sediste as any).Adresa, (subj.sediste as any).fullAddress, (subj.sediste as any).mesto, (subj.sediste as any).ulica)
-      }
-      if (!adresa) adresa = pickStr(subj.sediste, subj.Sediste)
-      if (naziv) setKlijentNaziv(naziv)
-      if (adresa) setKlijentAdresa(adresa)
-      if (naziv || adresa) {
-        setKlijentPib(pibDigits)
-        setGreske(g => g.filter(x => x !== 'klijentNaziv' && x !== 'klijentAdresa'))
-        setToast({ msg: 'Podaci preuzeti iz APR ✅', type: 'success' })
-      } else {
-        setToast({ msg: 'PIB nije pronađen u APR registru', type: 'error' })
-      }
-    } catch {
-      setToast({ msg: 'Greška pri preuzimanju podataka sa APR', type: 'error' })
-    } finally {
-      setAprKlijentLoading(false)
-    }
-  }
-
   const sacuvajFakturu = async () => {
     const g: string[] = []
     if (!brojFakture.trim()) g.push('brojFakture')
@@ -341,7 +252,6 @@ export default function FakturaPage() {
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
-      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
       {/* Header */}
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -478,28 +388,9 @@ export default function FakturaPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '10px 0 6px 0' }}>
             {inostranstvo ? 'TAX ID / PIB' : 'PIB KLIJENTA'}
           </p>
-          <div style={{ position: 'relative', marginBottom: 10 }}>
-            <Input
-              value={klijentPib}
-              onChange={setKlijentPib}
-              placeholder={inostranstvo ? 'VAT number (opciono)' : '123456789 (opciono)'}
-              style={{ paddingRight: 40 }}
-              onBlur={preuzmiKlijentaIzApr}
-              onKeyDown={e => { if (e.key === 'Enter') preuzmiKlijentaIzApr() }}
-            />
-            {aprKlijentLoading && (
-              <span
-                aria-hidden
-                style={{
-                  position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                  width: 18, height: 18, borderRadius: '50%',
-                  border: '2px solid var(--border)', borderTopColor: 'var(--accent)',
-                  animation: 'apr-spin 0.8s linear infinite',
-                }}
-              />
-            )}
-          </div>
-          <style>{`@keyframes apr-spin { to { transform: translateY(-50%) rotate(360deg); } }`}</style>
+          <Input value={klijentPib} onChange={setKlijentPib}
+            placeholder={inostranstvo ? 'VAT number (opciono)' : '123456789 (opciono)'}
+            style={{ marginBottom: 10 }} />
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>
             {inostranstvo ? 'ADDRESS / ADRESA *' : 'ADRESA *'}

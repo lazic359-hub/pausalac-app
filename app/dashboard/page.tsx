@@ -1,6 +1,5 @@
 'use client'
 import SmartInsights from "@/components/SmartInsights";
-import MonthlyObligations, { type MonthlyObligationsHandle } from '@/components/MonthlyObligations'
 import { getEurToRsdRate } from '@/lib/exchange-rate'
 import { useState, useEffect, useRef } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
@@ -319,7 +318,6 @@ export default function Home() {
   const [klijentSuggestions, setKlijentSuggestions] = useState<string[]>([])
   const [showKlijentDropdown, setShowKlijentDropdown] = useState(false)
   const klijentDropdownRef = useRef<HTMLDivElement>(null)
-  const monthlyObRef = useRef<MonthlyObligationsHandle>(null)
   const [poresniPodaci, setPoresniPodaci] = useState<{
     tax_amount: number | null
     pio_amount: number | null
@@ -642,7 +640,7 @@ export default function Home() {
       )}
 
       {/* Header */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="app-header" style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>💼</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušalac</span>
@@ -662,7 +660,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px' }}>
+      <div className="page-content" style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
 
         {loading && (
           <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Učitavanje...</div>
@@ -771,8 +769,7 @@ export default function Home() {
             </div>
 
             <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT} />
-            <MonthlyObligations ref={monthlyObRef} />
-            <SmartInsights onOpenQRModal={() => monthlyObRef.current?.openUplatniceModal()} prihodi={fakture} prihodiTekucaGodina={prihodiTekucaGodina} godina={godina} />
+            <SmartInsights prihodi={fakture} prihodiTekucaGodina={prihodiTekucaGodina} godina={godina} />
           </>
         )}
 
@@ -954,8 +951,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* Bottom nav */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
+      {/* Bottom nav — fiksirana na dnu na svim uređajima */}
+      <div className="bottom-nav-fixed" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
         {[
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
           { key: 'fakture', icon: '📋', label: 'Prihodi' },
@@ -966,12 +963,12 @@ export default function Home() {
         ].map(item => (
           <button key={item.key} onClick={() => (item as any).href ? window.location.href = (item as any).href : setTab(item.key as any)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
-            <span style={{ fontSize: 22 }}>{item.icon}</span>
-            {item.label}
+            <span className="nav-item-icon" style={{ fontSize: 22 }}>{item.icon}</span>
+            <span className="nav-item-label">{item.label}</span>
           </button>
         ))}
       </div>
-      <div style={{ height: 80 }} />
+      <div className="page-content-spacer" />
     </div>
   )
 }

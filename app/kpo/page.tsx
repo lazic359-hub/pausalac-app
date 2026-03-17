@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { BottomNav } from '@/components/BottomNav'
 import jsPDF from 'jspdf'
 
 const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
@@ -412,7 +413,7 @@ export default function KpoPage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 40px 16px' }}>
+      <div className="page-content" style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
 
         {/* Ukupan promet */}
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -483,10 +484,10 @@ export default function KpoPage() {
             <p style={{ fontSize: 16, margin: 0 }}>Nema prihoda za ovaj period.</p>
           </div>
         ) : (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-
+          <div className="table-scroll-wrap" style={{ marginLeft: 0, marginRight: 0, paddingLeft: 0, paddingRight: 0 }}>
+          <div className="table-min-width kpo-table" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', minWidth: 480 }}>
             {/* Header tabele */}
-            <div style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+            <div className="kpo-table-header" style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
               <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Red. br.</p>
               <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Datum</p>
               <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Opis (Račun br. i Klijent)</p>
@@ -500,6 +501,7 @@ export default function KpoPage() {
               return (
                 <div
                   key={p.id}
+                  className="kpo-table-row"
                   style={{
                     display: 'grid',
                     gridTemplateColumns: '44px 82px 1fr 90px 100px',
@@ -524,7 +526,7 @@ export default function KpoPage() {
             })}
 
             {/* Footer — ukupno za filter */}
-            <div style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
+            <div className="kpo-table-footer" style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
               <div />
               <div />
               <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontWeight: 700 }}>UKUPNO {filter !== 'sve' ? filter : ''}</p>
@@ -543,8 +545,10 @@ export default function KpoPage() {
               </div>
             )}
           </div>
+          </div>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

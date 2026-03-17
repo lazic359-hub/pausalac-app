@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { createClient, User } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { BottomNav } from '@/components/BottomNav'
 
 const SUPABASE_URL = 'https://ymiyqhblbqkkycpdnlaq.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk'
@@ -310,7 +311,7 @@ export default function PrihodiPage() {
         <ThemeToggle />
       </div>
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
+      <div className="page-content" style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
         <div style={{ display: 'flex', gap: 12, marginBottom: 24 }}>
           <button
             type="button"
@@ -372,7 +373,8 @@ export default function PrihodiPage() {
         ) : prihodi.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px 0' }}>Nema prihoda.</p>
         ) : (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+          <div className="table-scroll-wrap" style={{ marginLeft: 0, marginRight: 0, paddingLeft: 0, paddingRight: 0 }}>
+          <div className="table-min-width" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', minWidth: 360 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
               <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>DATUM</span>
               <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>KLIJENT</span>
@@ -400,8 +402,10 @@ export default function PrihodiPage() {
               </div>
             ))}
           </div>
+          </div>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

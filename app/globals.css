@@ -56,3 +56,60 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
+
+/* ── Responzivnost: bottom nav i sadržaj ── */
+:root {
+  --bottom-nav-height: 72px;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Padding ispod sadržaja da ne bude ispod fiksirane bottom nav */
+.page-content {
+  padding-bottom: max(var(--bottom-nav-height), 16px) !important;
+}
+
+.page-content-spacer {
+  height: var(--bottom-nav-height);
+  min-height: 72px;
+}
+
+/* Bottom navigation — uvek fiksirana na dnu, safe area za uređaje sa useom */
+.bottom-nav-fixed {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1000;
+  padding-bottom: max(12px, var(--safe-area-bottom)) !important;
+}
+
+/* Tablet (768px) i manje: dashboard kartice u jednu kolonu */
+@media (max-width: 768px) {
+  .dashboard-grid-2 { grid-template-columns: 1fr !important; }
+  .dashboard-grid-3 { grid-template-columns: 1fr !important; }
+  .settings-grid-2 { grid-template-columns: 1fr !important; }
+}
+
+/* Mobil (375px i manje): kompaktniji header i nav */
+@media (max-width: 480px) {
+  .dashboard-grid-2 { grid-template-columns: 1fr !important; }
+  .dashboard-grid-3 { grid-template-columns: 1fr 1fr !important; }
+  .bottom-nav-fixed .nav-item-label { font-size: 10px !important; }
+  .bottom-nav-fixed .nav-item-icon { font-size: 18px !important; }
+  .app-header { padding: 12px 16px !important; flex-wrap: wrap; gap: 8px; }
+}
+
+/* Tabele: horizontalni scroll na uskim ekranima */
+.table-scroll-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-left: -16px;
+  margin-right: -16px;
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.table-scroll-wrap table,
+.table-scroll-wrap .table-min-width { min-width: 560px; }
+@media (max-width: 768px) {
+  .table-scroll-wrap .table-min-width { min-width: 500px; }
+}

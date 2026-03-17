@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { BottomNav } from '@/components/BottomNav'
 
 const SUPABASE_URL = 'https://ymiyqhblbqkkycpdnlaq.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk'
@@ -176,7 +177,7 @@ export default function FakturePage() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
+      <div className="page-content" style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
 
         {/* Nova faktura */}
         <div style={{ marginBottom: 16 }}>
@@ -245,9 +246,9 @@ export default function FakturePage() {
               />
             </div>
 
-            {/* Tabela */}
-            <div style={{ overflowX: 'auto', marginBottom: 20 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            {/* Tabela — horizontalni scroll na mobilnom/tabletu */}
+            <div className="table-scroll-wrap" style={{ marginBottom: 20 }}>
+              <table className="table-min-width" style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse', fontSize: 14 }}>
                 <thead>
                   <tr style={{ borderBottom: '2px solid var(--border)' }}>
                     <th style={{ textAlign: 'left', padding: '12px 8px', color: 'var(--text-muted)', fontWeight: 600 }}>Broj fakture</th>
@@ -321,6 +322,7 @@ export default function FakturePage() {
           </>
         )}
       </div>
+      <BottomNav />
     </div>
   )
 }

@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { createClient, User } from '@supabase/supabase-js'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import MonthlyObligations from '@/components/MonthlyObligations'
 import PoresniKalendar from '@/components/PoresniKalendar'
 import SmartInsights from '@/components/SmartInsights'
 
@@ -202,7 +202,12 @@ export default function Home() {
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [loading, setLoading] = useState(false)
+  const searchParams = useSearchParams()
   const [tab, setTab] = useState<'dashboard' | 'fakture' | 'settings' | 'izbor'>('dashboard')
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'izbor') setTab('izbor')
+  }, [searchParams])
 
   const [fakture, setFakture] = useState<Faktura[]>([])
   const [fakture365, setFakture365] = useState<Faktura[]>([])
@@ -572,7 +577,7 @@ export default function Home() {
       )}
 
       {/* Header */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="app-header" style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>💼</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušalac</span>
@@ -586,7 +591,7 @@ export default function Home() {
         </div>
       </div>
 
-      <div style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
+      <div className="page-content" style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
 
         {loading && <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>Učitavanje...</div>}
 
@@ -629,7 +634,7 @@ export default function Home() {
             </div>
 
             {/* FIX 4: Kartice — Ukupni rashodi + Neto */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div className="dashboard-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 18px' }}>
                 <p style={{ color: 'var(--text-muted)', fontSize: 10, margin: '0 0 6px 0' }}>UKUPNI RASHODI · {godina}.</p>
                 <p style={{ color: '#ff6b6b', fontWeight: 800, fontSize: 20, margin: 0 }}>
@@ -676,7 +681,7 @@ export default function Home() {
             )}
 
             {/* Brze akcije */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+            <div className="dashboard-grid-3" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
               <button onClick={() => { setTab('fakture'); setPrihodiTab('dodaj') }}
                 style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 13, padding: '14px 8px', borderRadius: 12, border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 20 }}>💰</span>+ Prihod
@@ -804,9 +809,7 @@ export default function Home() {
             )}
 
             <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT_6M} />
-            <MonthlyObligations />
-     
-<SmartInsights onOpenQRModal={() => {}} prihodi={fakture} prihodiTekucaGodina={fakture} godina={godina} />
+            <SmartInsights prihodi={fakture} prihodiTekucaGodina={fakture} godina={godina} />
           </>
         )}
 
@@ -1067,7 +1070,8 @@ export default function Home() {
                     <p>Nema rezultata za pretragu „{searchKlijent.trim()}”</p>
                   </div>
                 ) : (
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+                  <div className="table-scroll-wrap">
+                  <div className="table-min-width" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 140px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
                       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>DATUM</p>
                       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>KLIJENT</p>
@@ -1126,6 +1130,7 @@ export default function Home() {
                       <div />
                     </div>
                   </div>
+                  </div>
                 )}
               </>
             )}
@@ -1143,8 +1148,8 @@ export default function Home() {
         )}
       </div>
 
-      {/* Bottom nav */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
+      {/* Bottom nav — fiksirana na dnu na svim uređajima */}
+      <div className="bottom-nav-fixed" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
         {[
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
           { key: 'fakture', icon: '📋', label: 'Prihodi', href: '/prihodi' },
@@ -1156,12 +1161,12 @@ export default function Home() {
           <button key={item.key}
             onClick={() => (item as any).href ? window.location.href = (item as any).href : setTab(item.key as any)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
-            <span style={{ fontSize: 22 }}>{item.icon}</span>
-            {item.label}
+            <span className="nav-item-icon" style={{ fontSize: 22 }}>{item.icon}</span>
+            <span className="nav-item-label">{item.label}</span>
           </button>
         ))}
       </div>
-      <div style={{ height: 80 }} />
+      <div className="page-content-spacer" />
     </div>
   )
 }
