@@ -1,11 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useRouter } from 'next/navigation'
 
-const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabase = getSupabaseBrowser()
 
 type Kategorija = 'oprema' | 'softver' | 'zakup' | 'usluge' | 'ostalo'
 
@@ -23,7 +22,7 @@ const KATEGORIJE: { key: Kategorija; label: string; boja: string; ikona: string 
   { key: 'oprema',  label: 'Oprema',  boja: '#3b82f6', ikona: '💻' },
   { key: 'softver', label: 'Softver', boja: '#a855f7', ikona: '📦' },
   { key: 'zakup',   label: 'Zakup',   boja: '#f59e0b', ikona: '🏠' },
-  { key: 'usluge',  label: 'Usluge',  boja: '#00ffb3', ikona: '🔧' },
+  { key: 'usluge',  label: 'Usluge',  boja: '#00C896', ikona: '🔧' },
   { key: 'ostalo',  label: 'Ostalo',  boja: '#6b7280', ikona: '📎' },
 ]
 
@@ -35,6 +34,9 @@ const KVARTALI = {
 }
 
 export default function RashodiPage() {
+  const router = useRouter()
+  const [userId, setUserId] = useState<string | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [rashodi, setRashodi] = useState<Rashod[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'lista' | 'dodaj'>('lista')
@@ -52,14 +54,28 @@ export default function RashodiPage() {
   const [uspeh, setUspeh] = useState(false)
 
   useEffect(() => {
-    fetchRashodi()
-  }, [selectedGodina])
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      setUserId(user?.id ?? null)
+      setAuthLoading(false)
+    }
+    init()
+  }, [])
 
-  const fetchRashodi = async () => {
+  useEffect(() => {
+    if (!authLoading && !userId) router.replace('/login?next=/rashodi')
+  }, [authLoading, userId, router])
+
+  useEffect(() => {
+    if (userId) fetchRashodi(userId)
+  }, [selectedGodina, userId])
+
+  const fetchRashodi = async (uid: string) => {
     setLoading(true)
     const { data, error } = await supabase
       .from('rashodi')
       .select('*')
+      .eq('user_id', uid)
       .gte('datum', `${selectedGodina}-01-01`)
       .lte('datum', `${selectedGodina}-12-31`)
       .order('datum', { ascending: false })
@@ -73,11 +89,10 @@ export default function RashodiPage() {
     if (!forma.iznos || parseFloat(forma.iznos) <= 0) { setGreska('Unesite ispravan iznos'); return }
     if (!forma.datum) { setGreska('Unesite datum'); return }
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setGreska('Niste prijavljeni'); return }
+    if (!userId) { setGreska('Niste prijavljeni'); return }
 
     const novi = {
-      user_id: user.id,
+      user_id: userId,
       datum: forma.datum,
       opis: forma.opis.trim(),
       iznos: parseFloat(forma.iznos),
@@ -125,6 +140,14 @@ export default function RashodiPage() {
     width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)',
     borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)',
     fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none',
+  }
+
+  if (authLoading || !userId) {
+    return (
+      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>{authLoading ? 'Učitavanje…' : 'Preusmeravam na prijavu…'}</span>
+      </div>
+    )
   }
 
   return (

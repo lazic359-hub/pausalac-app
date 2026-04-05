@@ -1,0 +1,13 @@
+-- Ručna provera RLS za public.profiles
+-- U SQL Editoru auth.uid() je NULL, zato se RLS za "authenticated" testira iz aplikacije ili REST-a.
+--
+-- Brzi sanity check (samo struktura i politika):
+--   SELECT polname, polcmd, polroles::regrole[], pg_get_expr(polqual, polrelid) AS using_expr
+--   FROM pg_policy WHERE polrelid = 'public.profiles'::regclass;
+--
+-- Funkcionalni test (preporuka):
+--   1) Registruj dva naloga (A i B).
+--   2) Uloguj se kao A u aplikaciji — u Network tabu ili Supabase Table Editoru vidiš samo red gde id = A.
+--   3) Uloguj se kao B — ne smeš videti podatke A (Supabase client sa anon key + JWT B vraća samo profil B).
+--   4) Opciono: u Postmanu GET {{SUPABASE_URL}}/rest/v1/profiles sa Header Authorization: Bearer <JWT_A>
+--      i proveri da odgovor sadrži jedan red sa id = A.

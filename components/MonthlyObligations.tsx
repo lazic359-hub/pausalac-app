@@ -2,6 +2,7 @@
 import { useState, useEffect, useImperativeHandle, forwardRef, useRef } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { daysLateForCurrentMonth, latePenaltyAmount } from '@/lib/tax-deadline'
+import { readProfilFromStorage } from '@/lib/profile'
 
 export type MonthlyObligationsHandle = { openUplatniceModal: () => void }
 
@@ -29,7 +30,7 @@ const OBAVEZE: Obaveza[] = [
   { naziv: 'Porez na prihod', kljuc: 'mesecniPorez', opis: 'Mesečna akontacija poreza', boja: '#f59e0b', sifraPlacanja: '289' },
   { naziv: 'PIO doprinos', kljuc: 'mesecniPio', opis: 'Penzijsko i invalidsko osiguranje', boja: '#3b82f6', sifraPlacanja: '290' },
   { naziv: 'Zdravstveno osiguranje', kljuc: 'mesecniZdravstvo', opis: 'Doprinos za zdravstveno', boja: '#a855f7', sifraPlacanja: '291' },
-  { naziv: 'Osiguranje za nezaposlenost', kljuc: 'mesecniNezaposlenost', opis: 'Doprinos za slučaj nezaposlenosti', boja: '#00ffb3', sifraPlacanja: '292' },
+  { naziv: 'Osiguranje za nezaposlenost', kljuc: 'mesecniNezaposlenost', opis: 'Doprinos za slučaj nezaposlenosti', boja: '#00C896', sifraPlacanja: '292' },
 ]
 
 function generisiQR(profil: Profil, iznos: string, sifra: string, addPenaltyRsd = 0): string {
@@ -58,15 +59,20 @@ function MonthlyObligationsInner(_: unknown, ref: React.Ref<MonthlyObligationsHa
   }), [])
 
   useEffect(() => {
-    const saved = localStorage.getItem('pausalac_profil')
-    if (saved) setProfil(JSON.parse(saved))
+    const load = () => {
+      const p = readProfilFromStorage()
+      if (p && Object.keys(p).length > 0) setProfil(p as Profil)
+    }
+    load()
+    window.addEventListener('pausalac-profil-updated', load)
+    return () => window.removeEventListener('pausalac-profil-updated', load)
   }, [])
 
   if (!profil) return (
     <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginTop: 16 }}>
       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>MESEČNE OBAVEZE</p>
       <div style={{ textAlign: 'center', padding: '20px 0' }}>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Unesi podatke u <a href="/settings" style={{ color: 'var(--accent)' }}>Podešavanjima</a> da vidiš mesečne obaveze</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Unesi podatke u <a href="/profil" style={{ color: 'var(--accent)' }}>Profilu</a> da vidiš mesečne obaveze</p>
       </div>
     </div>
   )
@@ -87,7 +93,7 @@ function MonthlyObligationsInner(_: unknown, ref: React.Ref<MonthlyObligationsHa
           onClick={() => { setShowUplatniceModal(true); setUplatniceIndex(0); }}
           style={{
             width: '100%',
-            background: 'linear-gradient(135deg, var(--accent) 0%, #00cc8f 100%)',
+            background: 'linear-gradient(135deg, var(--accent) 0%, #00a884 100%)',
             border: 'none',
             borderRadius: 12,
             padding: '14px 20px',

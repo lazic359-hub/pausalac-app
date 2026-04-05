@@ -1,13 +1,16 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { createClient } from '@supabase/supabase-js'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
+import { readProfilFromStorage } from '@/lib/profile'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { useRouter } from 'next/navigation'
+import { getNbsToRsdRateMeta } from '@/lib/exchange-rate'
+import { FREE_INVOICES_PER_MONTH, isProFromRow } from '@/lib/plan'
+import { ProUpgradeModal } from '@/components/ProUpgradeModal'
 const PreuzmiPDFDugme = dynamic(() => import('../../components/PreuzmiPDFDugme'), { ssr: false })
 
-const SUPABASE_URL = 'https://ymiyqhblbqkkycpdnlaq.supabase.co'
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk'
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabase = getSupabaseBrowser()
 
 type Valuta = 'RSD' | 'EUR' | 'USD'
 type Profil = {
@@ -17,9 +20,18 @@ type Profil = {
   iban?: string; swift?: string
 }
 type Stavka = { id: number; opis: string; iznos: string }
-type KpoUnos = { datum: string; klijent: string; iznos: number; brojFakture: string; nacinPlacanja: string }
-
 const KURSEVI: Record<Valuta, number> = { RSD: 1, EUR: 117, USD: 108 }
+
+function graniceTekucegMeseca() {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = now.getMonth() + 1
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const start = `${y}-${pad(m)}-01`
+  const last = new Date(y, m, 0).getDate()
+  const end = `${y}-${pad(m)}-${pad(last)}`
+  return { start, end }
+}
 
 async function sledeciBrojFakture(userId: string): Promise<string> {
   const godina = new Date().getFullYear()
@@ -58,10 +70,10 @@ function Input({ value, onChange, onFocus, onBlur, placeholder, type = 'text', h
       onBlur={() => { setFocused(false); onBlur?.() }}
       style={{
         width: '100%', background: 'var(--bg-primary)',
-        border: `1px solid ${hasError ? '#ff4d4d' : focused ? '#00ffb360' : 'var(--border)'}`,
+        border: `1px solid ${hasError ? '#ff4d4d' : focused ? '#00C89660' : 'var(--border)'}`,
         borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14,
         boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s',
-        boxShadow: focused ? '0 0 0 3px #00ffb315' : 'none', ...style,
+        boxShadow: focused ? '0 0 0 3px #00C89615' : 'none', ...style,
       }}
     />
   )
@@ -72,7 +84,7 @@ function Greska({ tekst }: { tekst: string }) {
 }
 
 function ValutaPicker({ valuta, onChange }: { valuta: Valuta; onChange: (v: Valuta) => void }) {
-  const boje: Record<Valuta, string> = { RSD: '#00ffb3', EUR: '#3b82f6', USD: '#f59e0b' }
+  const boje: Record<Valuta, string> = { RSD: '#00C896', EUR: '#3b82f6', USD: '#f59e0b' }
   const oznake: Record<Valuta, string> = { RSD: '🇷🇸 RSD', EUR: '🇪🇺 EUR', USD: '🇺🇸 USD' }
   return (
     <div style={{ display: 'flex', gap: 8 }}>
@@ -97,11 +109,15 @@ function ValutaPicker({ valuta, onChange }: { valuta: Valuta; onChange: (v: Valu
 }
 
 export default function FakturaPage() {
+  const router = useRouter()
   const [user, setUser] = useState<{ id: string } | null>(null)
+  const [authLoading, setAuthLoading] = useState(true)
   const [profil, setProfil] = useState<Profil | null>(null)
   const [datum, setDatum] = useState(new Date().toISOString().split('T')[0])
   const [valuta, setValuta] = useState<Valuta>('RSD')
   const [kurs, setKurs] = useState('117')
+  const [kursNbsLoading, setKursNbsLoading] = useState(false)
+  const [kursNbsFallback, setKursNbsFallback] = useState(false)
   const [klijentNaziv, setKlijentNaziv] = useState('')
   const [klijentPib, setKlijentPib] = useState('')
   const [klijentAdresa, setKlijentAdresa] = useState('')
@@ -116,6 +132,10 @@ export default function FakturaPage() {
   const klijentDropdownRef = useRef<HTMLDivElement>(null)
   const [rokPlacanja, setRokPlacanja] = useState<'7' | '15' | '30' | '60' | 'custom'>('30')
   const [rokPlacanjaDatum, setRokPlacanjaDatum] = useState('')
+  const [proEntitled, setProEntitled] = useState(false)
+  const [entitlementsLoaded, setEntitlementsLoaded] = useState(false)
+  const [faktureCountMonth, setFaktureCountMonth] = useState(0)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
   const rokPlacanjaAktuelanDatum = (() => {
     if (rokPlacanja === 'custom') return rokPlacanjaDatum || ''
     const d = new Date(datum)
@@ -144,15 +164,24 @@ export default function FakturaPage() {
   }
 
   useEffect(() => {
-    const saved = localStorage.getItem('pausalac_profil')
-    if (saved) setProfil(JSON.parse(saved))
+    const load = () => {
+      const p = readProfilFromStorage()
+      if (p && Object.keys(p).length > 0) setProfil(p as Profil)
+    }
+    load()
+    window.addEventListener('pausalac-profil-updated', load)
+    return () => window.removeEventListener('pausalac-profil-updated', load)
   }, [])
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null))
+    supabase.auth.getUser().then(({ data: { user: u } }) => { setUser(u ?? null); setAuthLoading(false) })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null))
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    if (!authLoading && !user) router.replace('/login?next=/faktura')
+  }, [authLoading, user, router])
 
   useEffect(() => {
     if (user) {
@@ -167,10 +196,49 @@ export default function FakturaPage() {
   }, [user])
 
   useEffect(() => {
-    if (valuta === 'EUR') setKurs('117')
-    else if (valuta === 'USD') setKurs('108')
+    if (!user) return
+    const { start, end } = graniceTekucegMeseca()
+    let cancelled = false
+    void Promise.all([
+      supabase.from('profiles').select('plan, pro_until').eq('id', user.id).maybeSingle(),
+      supabase
+        .from('fakture')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .gte('datum', start)
+        .lte('datum', end),
+    ]).then(([profRes, countRes]) => {
+      if (cancelled) return
+      const row = profRes.data as { plan?: string | null; pro_until?: string | null } | null
+      setProEntitled(isProFromRow(row?.plan, row?.pro_until))
+      setFaktureCountMonth(countRes.count ?? 0)
+      setEntitlementsLoaded(true)
+    })
+    return () => { cancelled = true }
+  }, [user])
+
+  useEffect(() => {
+    if (valuta === 'RSD') {
+      setKurs('1')
+      setKursNbsLoading(false)
+      setKursNbsFallback(false)
+      setSacuvano(false)
+      return
+    }
+    let cancelled = false
+    setKursNbsLoading(true)
+    setKursNbsFallback(false)
     setSacuvano(false)
-  }, [valuta])
+    getNbsToRsdRateMeta(valuta, datum).then(({ rate, fallback }) => {
+      if (cancelled) return
+      setKurs(String(rate))
+      setKursNbsLoading(false)
+      setKursNbsFallback(fallback)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [valuta, datum])
 
   // Zatvori autocomplete pri kliku van
   useEffect(() => {
@@ -182,31 +250,25 @@ export default function FakturaPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Učitaj klijente za autocomplete: iz kpo_knjige (localStorage) i prihoda (Supabase)
+  // Klijenti za autocomplete: iz evidencije prihoda (Supabase)
   useEffect(() => {
-    const fromKpo: string[] = []
-    try {
-      const kpo: KpoUnos[] = JSON.parse(localStorage.getItem('kpo_knjiga') || '[]')
-      kpo.forEach(u => { if (u.klijent?.trim()) fromKpo.push(u.klijent.trim()) })
-    } catch { /* ignore */ }
     if (!user) {
-      setKlijentSuggestions([...new Set(fromKpo)].sort((a, b) => a.localeCompare(b)))
+      setKlijentSuggestions([])
       return
     }
     const fetchPrihodi = async () => {
       const { data } = await supabase.from('prihodi').select('klijent').eq('user_id', user.id)
       const fromPrihodi = (data || []).map((r: { klijent: string }) => r.klijent).filter(Boolean)
-      const merged = [...new Set([...fromKpo, ...fromPrihodi])].sort((a, b) => a.localeCompare(b))
-      setKlijentSuggestions(merged)
+      setKlijentSuggestions([...new Set(fromPrihodi)].sort((a, b) => a.localeCompare(b)))
     }
     fetchPrihodi()
   }, [user])
 
-  const kursNum = parseFloat(kurs) || KURSEVI[valuta]
+  const kursNum = valuta === 'RSD' ? 1 : parseFloat(kurs) || KURSEVI[valuta]
   const ukupnoValuta = stavke.reduce((sum, s) => sum + (parseFloat(s.iznos) || 0), 0)
   const ukupnoRSD = valuta === 'RSD' ? ukupnoValuta : Math.round(ukupnoValuta * kursNum)
   const inostranstvo = valuta !== 'RSD'
-  const valutaBoja = valuta === 'EUR' ? '#3b82f6' : valuta === 'USD' ? '#f59e0b' : '#00ffb3'
+  const valutaBoja = valuta === 'EUR' ? '#3b82f6' : valuta === 'USD' ? '#f59e0b' : '#00C896'
 
   const dodajStavku = () => setStavke([...stavke, { id: Date.now(), opis: '', iznos: '' }])
   const ukloniStavku = (id: number) => { if (stavke.length > 1) setStavke(stavke.filter(s => s.id !== id)) }
@@ -215,12 +277,17 @@ export default function FakturaPage() {
   const ima = (key: string) => greske.includes(key)
 
   const sacuvajFakturu = async () => {
+    if (!proEntitled && faktureCountMonth >= FREE_INVOICES_PER_MONTH) {
+      setUpgradeOpen(true)
+      return
+    }
     const g: string[] = []
     if (!brojFakture.trim()) g.push('brojFakture')
     if (!klijentNaziv) g.push('klijentNaziv')
     if (!klijentAdresa) g.push('klijentAdresa')
     if (stavke.some(s => !s.opis || !s.iznos)) g.push('stavke')
     if (ukupnoValuta <= 0) g.push('iznos')
+    if (inostranstvo && (kursNbsLoading || !kurs.trim() || !Number.isFinite(parseFloat(kurs)))) g.push('kurs')
     setGreske(g)
     if (g.length > 0) return
     const br = brojFakture.trim()
@@ -231,27 +298,54 @@ export default function FakturaPage() {
       stavke: stavke.map(s => ({ id: s.id, opis: s.opis, iznos: s.iznos })),
       valuta,
       kurs: kursNum,
+      kurs_datum_fakture: datum,
+      kurs_nbs_fallback: kursNbsFallback,
       iznos_rsd: ukupnoRSD,
       legal_notes: LEGAL_TEXTS[legalNotes],
+      rok_placanja: rokPlacanjaAktuelanDatum,
+      nacin_placanja: nacinPlacanja,
     }
     if (user) {
-      const { error } = await supabase.from('fakture').insert({ user_id: user.id, broj_fakture: br, datum, payload })
+      const { error } = await supabase.from('fakture').insert({
+        user_id: user.id,
+        broj_fakture: br,
+        datum,
+        klijent: klijentNaziv,
+        iznos: ukupnoValuta,
+        valuta,
+        iznos_rsd: ukupnoRSD,
+        napomena: null,
+        status: 'issued',
+        payload,
+      })
       if (error) {
-        const fallback = await supabase.from('fakture').insert({ user_id: user.id, broj_fakture: br, datum })
+        const fallback = await supabase.from('fakture').insert({
+          user_id: user.id,
+          broj_fakture: br,
+          datum,
+          payload,
+        })
         if (fallback.error) {
           setGreske(['brojFakture'])
           return
         }
       }
     }
-    const noviUnos: KpoUnos = { datum, klijent: klijentNaziv, iznos: ukupnoRSD, brojFakture: br, nacinPlacanja }
-    const existing: KpoUnos[] = JSON.parse(localStorage.getItem('kpo_knjiga') || '[]')
-    localStorage.setItem('kpo_knjiga', JSON.stringify([...existing, noviUnos]))
     setSacuvano(true)
+    if (!proEntitled) setFaktureCountMonth((c) => c + 1)
+  }
+
+  if (authLoading || !user) {
+    return (
+      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>{authLoading ? 'Učitavanje…' : 'Preusmeravam na prijavu…'}</span>
+      </div>
+    )
   }
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
+      <ProUpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
 
       {/* Header */}
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -290,7 +384,7 @@ export default function FakturaPage() {
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>
               {inostranstvo ? 'SELLER / IZDAVALAC' : 'IZDAVALAC'}
             </p>
-            <p style={{ fontWeight: 700, fontSize: 16, margin: '0 0 6px 0', color: '#00ffb3' }}>{profil.nazivFirme}</p>
+            <p style={{ fontWeight: 700, fontSize: 16, margin: '0 0 6px 0', color: '#00C896' }}>{profil.nazivFirme}</p>
             <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 2px 0' }}>PIB: {profil.pib} · MB: {profil.maticniBroj}</p>
             <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>Račun: {profil.brojRacuna}</p>
             {inostranstvo && (profil.iban || profil.swift) && (
@@ -321,21 +415,47 @@ export default function FakturaPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 12px 0' }}>VALUTA I DATUM</p>
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>VALUTA FAKTURE</p>
-          <ValutaPicker valuta={valuta} onChange={setValuta} />
+          <ValutaPicker
+            valuta={valuta}
+            onChange={(v) => {
+              if (v !== 'RSD' && !proEntitled) {
+                setUpgradeOpen(true)
+                return
+              }
+              setValuta(v)
+            }}
+          />
 
           {inostranstvo && (
             <div style={{ marginTop: 12, background: valutaBoja + '08', border: `1px solid ${valutaBoja}20`, borderRadius: 10, padding: '12px 16px' }}>
               <p style={{ color: valutaBoja, fontSize: 11, margin: '0 0 8px 0', fontWeight: 700 }}>
-                KURS NBS — 1 {valuta} =
+                KURS NBS (srednji, za datum fakture) — 1 {valuta} =
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Input type="number" value={kurs} onChange={setKurs}
-                  placeholder={valuta === 'EUR' ? '117' : '108'} style={{ flex: 1 }} />
-                <span style={{ color: 'var(--text-muted)', fontSize: 14, whiteSpace: 'nowrap' }}>RSD</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <span style={{
+                  flex: 1,
+                  minWidth: 120,
+                  background: 'var(--bg-primary)',
+                  border: `1px solid ${valutaBoja}35`,
+                  borderRadius: 10,
+                  padding: '12px 16px',
+                  color: 'var(--text-primary)',
+                  fontSize: 15,
+                  fontWeight: 700,
+                  fontVariantNumeric: 'tabular-nums',
+                }}>
+                  {kursNbsLoading ? '…' : `${kursNum.toLocaleString('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 4 })} RSD`}
+                </span>
               </div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '6px 0 0 0' }}>
-                Ručno unesi aktuelni kurs sa sajta NBS
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '8px 0 0 0', lineHeight: 1.45 }}>
+                Automatski sa NBS (kurs.resenje.org) za izabrani datum fakture.
+                {kursNbsFallback && (
+                  <span style={{ color: '#f59e0b', display: 'block', marginTop: 4 }}>
+                    Nije uspelo učitavanje — prikazan je rezervni kurs; proveri datum ili pokušaj ponovo.
+                  </span>
+                )}
               </p>
+              {ima('kurs') && <Greska tekst="Sačekaj učitavanje kursa NBS ili proveri datum fakture." />}
             </div>
           )}
 
@@ -468,7 +588,7 @@ export default function FakturaPage() {
               <div style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 10, padding: '10px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, margin: '0 0 2px 0' }}>DINARSKA PROTIVVREDNOST</p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 10, margin: 0 }}>Upisuje se u KPO · kurs {kursNum} RSD/{valuta}</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 10, margin: 0 }}>Upisuje se u KPO · NBS kurs {kursNum} RSD/{valuta}</p>
                 </div>
                 <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 18 }}>
                   {ukupnoRSD.toLocaleString()} RSD
@@ -512,12 +632,12 @@ export default function FakturaPage() {
                 <button key={opt} onClick={() => setNacinPlacanja(opt)}
                   style={{
                     padding: '11px 0',
-                    background: aktivan ? '#00ffb318' : 'var(--bg-primary)',
-                    border: `1px solid ${aktivan ? '#00ffb370' : 'var(--border)'}`,
+                    background: aktivan ? '#00C89618' : 'var(--bg-primary)',
+                    border: `1px solid ${aktivan ? '#00C89670' : 'var(--border)'}`,
                     borderRadius: 10, color: aktivan ? 'var(--accent)' : 'var(--text-muted)',
                     fontWeight: aktivan ? 700 : 400, fontSize: 14,
                     cursor: 'pointer', transition: 'all 0.2s',
-                    boxShadow: aktivan ? '0 0 14px #00ffb318' : 'none',
+                    boxShadow: aktivan ? '0 0 14px #00C89618' : 'none',
                   }}>
                   {opt}
                 </button>
@@ -537,12 +657,12 @@ export default function FakturaPage() {
                 <button key={opt} onClick={() => setRokPlacanjaWithDefault(opt)}
                   style={{
                     padding: '11px 4px',
-                    background: aktivan ? '#00ffb318' : 'var(--bg-primary)',
-                    border: `1px solid ${aktivan ? '#00ffb370' : 'var(--border)'}`,
+                    background: aktivan ? '#00C89618' : 'var(--bg-primary)',
+                    border: `1px solid ${aktivan ? '#00C89670' : 'var(--border)'}`,
                     borderRadius: 10, color: aktivan ? 'var(--accent)' : 'var(--text-muted)',
                     fontWeight: aktivan ? 700 : 400, fontSize: 13,
                     cursor: 'pointer', transition: 'all 0.2s',
-                    boxShadow: aktivan ? '0 0 14px #00ffb318' : 'none',
+                    boxShadow: aktivan ? '0 0 14px #00C89618' : 'none',
                   }}>
                   {label}
                 </button>
@@ -576,17 +696,41 @@ export default function FakturaPage() {
         <div style={{ maxWidth: 680, margin: '0 auto' }}>
           {sacuvano && profil ? (
             <PreuzmiPDFDugme
-              brojFakture={brojFakture} datum={datum} izdavalac={profil}
+              brojFakture={brojFakture}
+              datum={datum}
+              datumValute={rokPlacanjaAktuelanDatum}
+              izdavalac={profil}
               klijent={{ naziv: klijentNaziv, pib: klijentPib, adresa: klijentAdresa }}
-              stavke={stavke} valuta={valuta} kurs={kursNum}
+              stavke={stavke}
+              valuta={valuta}
+              kurs={kursNum}
               legalNotes={LEGAL_TEXTS[legalNotes]}
               style={{ width: '100%' }}
             />
           ) : (
             <button onClick={sacuvajFakturu}
-              style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340', transition: 'box-shadow 0.2s' }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = '0 0 40px #00ffb370'}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 0 20px #00ffb340'}
+              disabled={!entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim()))}
+              style={{
+                width: '100%',
+                background: 'var(--accent)',
+                color: '#000',
+                fontWeight: 700,
+                fontSize: 15,
+                padding: '16px',
+                borderRadius: 12,
+                border: 'none',
+                cursor: !entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim())) ? 'not-allowed' : 'pointer',
+                opacity: !entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim())) ? 0.65 : 1,
+                boxShadow: '0 0 20px #00C89640',
+                transition: 'box-shadow 0.2s, opacity 0.2s',
+              }}
+              onMouseEnter={e => {
+                if (!entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim()))) return
+                e.currentTarget.style.boxShadow = '0 0 40px #00C89670'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.boxShadow = '0 0 20px #00C89640'
+              }}
             >
               💾 Sačuvaj fakturu
             </button>

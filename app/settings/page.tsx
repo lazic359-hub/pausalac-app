@@ -1,16 +1,20 @@
 'use client'
 import DataManagement from "@/components/DataManagement"
 import { UputstvoModal } from "@/components/UputstvoZaPocetnike"
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import { PushNotificationSettings } from '@/components/PushNotificationSettings'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { BottomNav } from '@/components/BottomNav'
 import TestSamostalnosti from "@/components/TestSamostalnosti"
-import { createClient } from '@supabase/supabase-js'
-import { BookOpen, ChevronRight } from 'lucide-react'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
+import { readProfilFromStorage, setProfileMemory } from '@/lib/profile'
+import {
+  BookOpen, Building2, ChevronRight, LayoutDashboard, FileSpreadsheet, Wallet, FileText, LogOut, Landmark,
+} from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
-const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabase = getSupabaseBrowser()
 
 type Profil = {
   nazivFirme: string; pib: string; maticniBroj: string
@@ -18,6 +22,11 @@ type Profil = {
   mesecniPorez: string; mesecniPio: string; mesecniZdravstvo: string
   mesecniNezaposlenost: string; brojRacuna: string; godisnjLimit: string
   iban: string; swift: string; sediste: string
+  /** ISO yyyy-mm-dd — iz onboardinga / podešavanja */
+  datumRegistracije: string
+  /** Prihod ostvaren pre evidencije u aplikaciji, za jednu godinu */
+  pocetniPrihodRsd: string
+  pocetniPrihodGodina: string
   reminder3Dana: boolean; reminder1Dan: boolean
 }
 
@@ -25,6 +34,7 @@ const PRAZAN_PROFIL: Profil = {
   nazivFirme: '', pib: '', maticniBroj: '', sifraDelatnosti: '', godinaPrvePausalne: '',
   mesecniPorez: '', mesecniPio: '', mesecniZdravstvo: '', mesecniNezaposlenost: '',
   brojRacuna: '', godisnjLimit: '6000000', iban: '', swift: '', sediste: '',
+  datumRegistracije: '', pocetniPrihodRsd: '', pocetniPrihodGodina: '',
   reminder3Dana: true, reminder1Dan: true
 }
 
@@ -34,13 +44,15 @@ const kartica: React.CSSProperties = {
   position: 'relative', overflow: 'hidden',
 }
 
-function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {}, disabled = false }: {
+function Input({ value, onChange, placeholder, type = 'text', hasError = false, style = {}, disabled = false, inputMode }: {
   value: string; onChange: (v: string) => void; placeholder?: string
   type?: string; hasError?: boolean; style?: React.CSSProperties; disabled?: boolean
+  inputMode?: React.HTMLAttributes<HTMLInputElement>['inputMode']
 }) {
   const [focused, setFocused] = useState(false)
   return (
     <input type={type} placeholder={placeholder} value={value}
+      inputMode={inputMode}
       onChange={e => onChange(e.target.value)}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false) }}
@@ -48,10 +60,10 @@ function Input({ value, onChange, placeholder, type = 'text', hasError = false, 
       readOnly={disabled}
       style={{
         width: '100%', background: disabled ? 'var(--bg-card)' : 'var(--bg-primary)',
-        border: `1px solid ${hasError ? '#ff4d4d' : focused && !disabled ? '#00ffb360' : 'var(--border)'}`,
+        border: `1px solid ${hasError ? 'var(--alert-danger-border)' : focused && !disabled ? '#00C89660' : 'var(--border)'}`,
         borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14,
         boxSizing: 'border-box', outline: 'none', transition: 'border-color 0.2s',
-        boxShadow: focused && !disabled ? '0 0 0 3px #00ffb315' : 'none',
+        boxShadow: focused && !disabled ? '0 0 0 3px #00C89615' : 'none',
         cursor: disabled ? 'default' : 'text', opacity: disabled ? 0.95 : 1, ...style,
       }}
     />
@@ -59,14 +71,32 @@ function Input({ value, onChange, placeholder, type = 'text', hasError = false, 
 }
 
 function Greska({ tekst }: { tekst: string }) {
-  return <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
+  return <p style={{ color: 'var(--alert-danger-text)', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
 }
+
+function formatRsd(n: number) {
+  return new Intl.NumberFormat('sr-RS', { maximumFractionDigits: 0 }).format(n)
+}
+
+function notifyProfilUpdated() {
+  if (typeof window === 'undefined') return
+  window.dispatchEvent(new CustomEvent('pausalac-profil-updated'))
+}
+
+const BRZI_LINKOVI: { href: string; label: string; sub: string; Icon: typeof LayoutDashboard }[] = [
+  { href: '/dashboard', label: 'Kontrolna tabla', sub: 'Pregled, kalendar, obaveze', Icon: LayoutDashboard },
+  { href: '/prihodi', label: 'Prihodi', sub: 'Evidencija i grafikon', Icon: Wallet },
+  { href: '/kpo', label: 'KPO', sub: 'Limit i knjiga prometa', Icon: FileSpreadsheet },
+  { href: '/fakture', label: 'Fakture', sub: 'Izdavanje i arhiva', Icon: FileText },
+  { href: '/rashodi', label: 'Rashodi', sub: 'Troškovi poslovanja', Icon: Landmark },
+  { href: '/doo', label: 'DOO kalkulator', sub: 'Paušal vs DOO (procena)', Icon: Building2 },
+]
 
 type ToastType = 'success' | 'error'
 function Toast({ msg, type, onClose }: { msg: string; type: ToastType; onClose: () => void }) {
   const colors = type === 'success'
     ? { bg: 'rgba(0,255,179,0.1)', border: 'rgba(0,255,179,0.3)', color: 'var(--accent)' }
-    : { bg: 'rgba(255,60,60,0.1)', border: 'rgba(255,60,60,0.3)', color: '#ff5555' }
+    : { bg: 'var(--alert-danger-bg)', border: 'var(--alert-danger-border)', color: 'var(--alert-danger-text)' }
   return (
     <div style={{
       position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)',
@@ -83,6 +113,9 @@ function Toast({ msg, type, onClose }: { msg: string; type: ToastType; onClose: 
 }
 
 export default function SettingsPage() {
+  const router = useRouter()
+  const [authLoading, setAuthLoading] = useState(true)
+  const [userId, setUserId] = useState<string | null>(null)
   const [profil, setProfil] = useState<Profil>(PRAZAN_PROFIL)
   const [originalProfil, setOriginalProfil] = useState<Profil>(PRAZAN_PROFIL)
   const [editMode, setEditMode] = useState(false)
@@ -92,6 +125,16 @@ export default function SettingsPage() {
   const [ucitavanje, setUcitavanje] = useState(true)
   const [showUputstvo, setShowUputstvo] = useState(false)
   const [toast, setToast] = useState<{ msg: string; type: ToastType } | null>(null)
+  const [userEmail, setUserEmail] = useState<string | null>(null)
+  const [logoutBusy, setLogoutBusy] = useState(false)
+
+  const ukupnoMesečno = useMemo(() => {
+    const a = parseInt(profil.mesecniPorez, 10) || 0
+    const b = parseInt(profil.mesecniPio, 10) || 0
+    const c = parseInt(profil.mesecniZdravstvo, 10) || 0
+    const d = parseInt(profil.mesecniNezaposlenost, 10) || 0
+    return a + b + c + d
+  }, [profil.mesecniPorez, profil.mesecniPio, profil.mesecniZdravstvo, profil.mesecniNezaposlenost])
 
   useEffect(() => {
     ucitajPodatke()
@@ -99,35 +142,48 @@ export default function SettingsPage() {
 
   const ucitajPodatke = async () => {
     setUcitavanje(true)
-    // Ucitaj iz localStorage (naziv firme, pib, racun itd.)
-    const saved = localStorage.getItem('pausalac_profil')
-    if (saved) {
-      const parsed = { ...PRAZAN_PROFIL, ...JSON.parse(saved) }
-      setProfil(parsed)
-      setOriginalProfil(parsed)
-    }
-    // Ucitaj poreske podatke iz Supabase
     const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      const { data } = await supabase
-        .from('profiles')
-        .select('tax_amount, pio_amount, health_amount, unemployment_amount')
-        .eq('user_id', user.id)
-        .single()
-      if (data) {
-        const merge = (p: Profil) => ({
-          ...p,
-          mesecniPorez: data.tax_amount != null ? String(data.tax_amount) : p.mesecniPorez,
-          mesecniPio: data.pio_amount != null ? String(data.pio_amount) : p.mesecniPio,
-          mesecniZdravstvo: data.health_amount != null ? String(data.health_amount) : p.mesecniZdravstvo,
-          mesecniNezaposlenost: data.unemployment_amount != null ? String(data.unemployment_amount) : p.mesecniNezaposlenost,
-        })
-        setProfil(p => merge(p))
-        setOriginalProfil(p => merge(p))
-      }
+    setUserId(user?.id ?? null)
+    setUserEmail(user?.email ?? null)
+    setAuthLoading(false)
+
+    if (!user) {
+      setUcitavanje(false)
+      return
     }
+
+    const { data } = await supabase
+      .from('profiles')
+      .select('company_data, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const fromDb = (data?.company_data as Partial<Profil> | null) ?? {}
+    const fromMem = readProfilFromStorage() ?? {}
+    const parsed: Profil = {
+      ...PRAZAN_PROFIL,
+      ...fromDb,
+      ...fromMem,
+    } as Profil
+
+    if (data) {
+      parsed.mesecniPorez = data.porez_na_prihod != null ? String(data.porez_na_prihod) : parsed.mesecniPorez
+      parsed.mesecniPio = data.pio_doprinos != null ? String(data.pio_doprinos) : parsed.mesecniPio
+      parsed.mesecniZdravstvo = data.zdravstveno != null ? String(data.zdravstveno) : parsed.mesecniZdravstvo
+      parsed.mesecniNezaposlenost =
+        data.nezaposleni != null ? String(data.nezaposleni) : parsed.mesecniNezaposlenost
+    }
+
+    setProfil(parsed)
+    setOriginalProfil(parsed)
+    setProfileMemory(user.id, parsed as unknown as Record<string, unknown>)
+
     setUcitavanje(false)
   }
+
+  useEffect(() => {
+    if (!authLoading && !userId) router.replace('/login?next=/settings')
+  }, [authLoading, userId, router])
 
   const startEdit = () => {
     setOriginalProfil(profil)
@@ -141,13 +197,20 @@ export default function SettingsPage() {
   const openSaveConfirm = () => setShowConfirmSave(true)
   const doSave = async () => {
     setShowConfirmSave(false)
-    await sacuvaj()
-    setOriginalProfil(profil)
-    setEditMode(false)
+    const saved = await sacuvaj()
+    if (saved) {
+      setOriginalProfil(saved)
+      setEditMode(false)
+    }
   }
 
   const ocisti = (key: string) => setGreske(g => g.filter(x => x !== key))
-  const set = (key: keyof Profil) => (v: string) => { setProfil(p => ({ ...p, [key]: v })); ocisti(key) }
+  const set = (key: keyof Profil) => (v: string) => {
+    setProfil(p => ({ ...p, [key]: v }))
+    ocisti(key)
+    if (key === 'pib') ocisti('pib_format')
+    if (key === 'maticniBroj') ocisti('mb_format')
+  }
   const setBool = (key: 'reminder3Dana' | 'reminder1Dan') => () => setProfil(p => ({ ...p, [key]: !p[key] }))
   const ima = (key: string) => greske.includes(key)
 
@@ -156,42 +219,70 @@ export default function SettingsPage() {
     setTimeout(() => setToast(null), 3500)
   }
 
-  const sacuvaj = async () => {
+  const odjava = async () => {
+    setLogoutBusy(true)
+    const { error } = await supabase.auth.signOut()
+    setLogoutBusy(false)
+    if (error) {
+      showToast('Odjava nije uspela. Pokušaj ponovo.', 'error')
+      return
+    }
+    router.replace('/login')
+  }
+
+  const sacuvaj = async (): Promise<Profil | null> => {
     const nova: string[] = []
-    if (!profil.nazivFirme) nova.push('nazivFirme')
-    if (!profil.pib) nova.push('pib')
-    if (!profil.maticniBroj) nova.push('maticniBroj')
-    if (!profil.mesecniPorez) nova.push('mesecniPorez')
-    if (!profil.mesecniPio) nova.push('mesecniPio')
-    if (!profil.mesecniZdravstvo) nova.push('mesecniZdravstvo')
-    if (!profil.brojRacuna) nova.push('brojRacuna')
+    if (!profil.nazivFirme.trim()) nova.push('nazivFirme')
+    const pibDigits = profil.pib.replace(/\D/g, '')
+    if (!profil.pib.trim()) nova.push('pib')
+    else if (pibDigits.length !== 9) nova.push('pib_format')
+    const mbDigits = profil.maticniBroj.replace(/\D/g, '')
+    if (!profil.maticniBroj.trim()) nova.push('maticniBroj')
+    else if (mbDigits.length !== 8) nova.push('mb_format')
+    if (!profil.mesecniPorez.trim()) nova.push('mesecniPorez')
+    if (!profil.mesecniPio.trim()) nova.push('mesecniPio')
+    if (!profil.mesecniZdravstvo.trim()) nova.push('mesecniZdravstvo')
+    if (profil.mesecniNezaposlenost.trim() === '') nova.push('mesecniNezaposlenost')
+    if (!profil.brojRacuna.trim()) nova.push('brojRacuna')
+    const limitN = parseInt(String(profil.godisnjLimit).replace(/\s/g, ''), 10)
+    if (!Number.isFinite(limitN) || limitN <= 0) nova.push('godisnjLimit')
     setGreske(nova)
-    if (nova.length > 0) return
+    if (nova.length > 0) return null
 
-    // Sacuvaj ostale podatke u localStorage
-    localStorage.setItem('pausalac_profil', JSON.stringify(profil))
+    const profilZaCuvanje: Profil = {
+      ...profil,
+      pib: pibDigits,
+      maticniBroj: mbDigits,
+      godisnjLimit: String(limitN),
+    }
 
-    // Sacuvaj poreske podatke u Supabase
+    setProfil(profilZaCuvanje)
+    notifyProfilUpdated()
+
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase
-        .from('profiles')
-        .upsert({
-          user_id: user.id,
-          tax_amount: parseInt(profil.mesecniPorez) || 0,
-          pio_amount: parseInt(profil.mesecniPio) || 0,
-          health_amount: parseInt(profil.mesecniZdravstvo) || 0,
-          unemployment_amount: parseInt(profil.mesecniNezaposlenost) || 0,
-        }, { onConflict: 'user_id' })
+      await supabase.from('profiles').upsert(
+        {
+          id: user.id,
+          company_data: profilZaCuvanje as unknown as Record<string, unknown>,
+          porez_na_prihod: parseInt(profilZaCuvanje.mesecniPorez) || 0,
+          pio_doprinos: parseInt(profilZaCuvanje.mesecniPio) || 0,
+          zdravstveno: parseInt(profilZaCuvanje.mesecniZdravstvo) || 0,
+          nezaposleni: parseInt(profilZaCuvanje.mesecniNezaposlenost) || 0,
+        },
+        { onConflict: 'id' }
+      )
+      setProfileMemory(user.id, profilZaCuvanje as unknown as Record<string, unknown>)
     }
 
     setSacuvano(true)
     setTimeout(() => setSacuvano(false), 2000)
+    return profilZaCuvanje
   }
 
-  if (ucitavanje) return (
+  if (authLoading || !userId || ucitavanje) return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ color: 'var(--accent)', fontSize: 14 }}>Učitavanje...</span>
+      <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>{authLoading ? 'Učitavanje…' : !userId ? 'Preusmeravam na prijavu…' : 'Učitavanje…'}</span>
     </div>
   )
 
@@ -206,8 +297,15 @@ export default function SettingsPage() {
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
         >←</button>
-        <span style={{ fontSize: 18 }}>⚙️</span>
-        <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Podešavanja profila</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 18 }} aria-hidden>⚙️</span>
+            <span style={{ fontWeight: 800, fontSize: 18, color: 'var(--accent)', letterSpacing: '-0.02em' }}>Podešavanja</span>
+          </div>
+          <span style={{ color: 'var(--text-muted)', fontSize: 12, fontWeight: 500, paddingLeft: 28 }}>
+            Firma, poresko rešenje, limit i račun — sve za paušal u Srbiji
+          </span>
+        </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
           {editMode ? (
             <>
@@ -232,10 +330,17 @@ export default function SettingsPage() {
 
       {showConfirmSave && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
-          onClick={() => setShowConfirmSave(false)}>
-          <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 24, maxWidth: 360, width: '100%', border: '1px solid var(--border)' }}
-            onClick={e => e.stopPropagation()}>
-            <p style={{ color: 'var(--text-primary)', fontSize: 16, margin: '0 0 20px 0' }}>Da li si siguran da želiš da sačuvaš izmene?</p>
+          onClick={() => setShowConfirmSave(false)}
+          role="presentation">
+          <div style={{ background: 'var(--bg-card)', borderRadius: 16, padding: 24, maxWidth: 400, width: '100%', border: '1px solid var(--border)' }}
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-save-title">
+            <p id="settings-save-title" style={{ color: 'var(--text-primary)', fontSize: 16, fontWeight: 700, margin: '0 0 8px 0' }}>Sačuvati izmene?</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 20px 0', lineHeight: 1.45 }}>
+              Podaci će se koristiti za fakture, KPO i obračun obaveza. Proveri da li su iznosi iz poreskog rešenja tačni.
+            </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowConfirmSave(false)}
                 style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', color: 'var(--text-primary)', padding: '10px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 600 }}>
@@ -251,6 +356,62 @@ export default function SettingsPage() {
       )}
 
       <div className="page-content" style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 120px 16px' }}>
+
+        <div style={{ marginBottom: 22 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 8px 0', color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
+            Tvoj paušal na jednom mestu
+          </h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1.55, margin: 0 }}>
+            Ovde unosiš podatke koje koristi aplikacija za KPO, fakture, uplatnice i podsetnike. Iznose prepiši iz rešenja Poreskog upravnika i redovno ih ažuriraj kad dobiješ novo rešenje.
+          </p>
+        </div>
+
+        {/* Brzi pristup */}
+        <div style={{ ...kartica, padding: 18, marginBottom: 16 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', margin: '0 0 14px 0' }}>BRZI PRISTUP</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(148px, 1fr))', gap: 10 }}>
+            {BRZI_LINKOVI.map(({ href, label, sub, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                style={{
+                  display: 'flex', flexDirection: 'column', gap: 6, padding: '12px 14px',
+                  borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-primary)',
+                  textDecoration: 'none', color: 'inherit', transition: 'border-color 0.2s, background 0.2s',
+                }}
+              >
+                <Icon size={20} color="var(--accent)" strokeWidth={2} aria-hidden />
+                <span style={{ fontWeight: 700, fontSize: 13 }}>{label}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.35 }}>{sub}</span>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Nalog */}
+        <div style={kartica}>
+          <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.06 }} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', margin: '0 0 14px 0' }}>NALOG</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, color: 'var(--text-muted)' }}>Prijavljen kao</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: 15, fontWeight: 600, wordBreak: 'break-all' }}>{userEmail ?? '—'}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void odjava()}
+              disabled={logoutBusy}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10,
+                border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                fontWeight: 600, fontSize: 14, cursor: logoutBusy ? 'wait' : 'pointer', opacity: logoutBusy ? 0.7 : 1,
+              }}
+            >
+              <LogOut size={18} aria-hidden />
+              {logoutBusy ? 'Odjavljivanje…' : 'Odjavi se'}
+            </button>
+          </div>
+        </div>
 
         {/* Podaci o firmi */}
         <div style={kartica}>
@@ -271,16 +432,37 @@ export default function SettingsPage() {
           <Input type="number" value={profil.godinaPrvePausalne || ''} onChange={set('godinaPrvePausalne')} placeholder="npr. 2022" disabled={!editMode} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>Koristi se za računanje poreskog umanjenja</p>
 
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>DATUM REGISTRACIJE PREDUZETNIKA</p>
+          <Input type="date" value={profil.datumRegistracije || ''} onChange={set('datumRegistracije')} disabled={!editMode} />
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>Kao u APR / poreskom kartonu — koristi se u pregledima i podsetnicima.</p>
+
           <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>PIB</p>
-              <Input value={profil.pib} onChange={set('pib')} placeholder="123456789" hasError={ima('pib')} disabled={!editMode} />
-              {ima('pib') && <Greska tekst="Obavezno polje" />}
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>POČETNI PRIHOD (PRE APLIKACIJE)</p>
+              <div style={{ position: 'relative' }}>
+                <Input type="number" value={profil.pocetniPrihodRsd || ''} onChange={set('pocetniPrihodRsd')} placeholder="0" style={{ paddingRight: 48 }} disabled={!editMode} />
+                <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>RSD</span>
+              </div>
             </div>
             <div>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>MATIČNI BROJ</p>
-              <Input value={profil.maticniBroj} onChange={set('maticniBroj')} placeholder="12345678" hasError={ima('maticniBroj')} disabled={!editMode} />
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>ZA KALENDARSKU GODINU</p>
+              <Input type="number" value={profil.pocetniPrihodGodina || ''} onChange={set('pocetniPrihodGodina')} placeholder={String(new Date().getFullYear())} disabled={!editMode} />
+            </div>
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '8px 0 0 0', lineHeight: 1.45 }}>Ako si već ostvario promet u toj godini pre evidencije u aplikaciji, unesi zbir da bi KPO i limit bili tačni.</p>
+
+          <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>PIB (9 cifara)</p>
+              <Input value={profil.pib} onChange={set('pib')} placeholder="123456789" hasError={ima('pib') || ima('pib_format')} disabled={!editMode} inputMode="numeric" />
+              {ima('pib') && <Greska tekst="Obavezno polje" />}
+              {ima('pib_format') && <Greska tekst="PIB mora imati tačno 9 cifara" />}
+            </div>
+            <div>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>MATIČNI BROJ (8 cifara)</p>
+              <Input value={profil.maticniBroj} onChange={set('maticniBroj')} placeholder="12345678" hasError={ima('maticniBroj') || ima('mb_format')} disabled={!editMode} inputMode="numeric" />
               {ima('maticniBroj') && <Greska tekst="Obavezno polje" />}
+              {ima('mb_format') && <Greska tekst="Matični broj mora imati tačno 8 cifara" />}
             </div>
           </div>
         </div>
@@ -289,7 +471,32 @@ export default function SettingsPage() {
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#f59e0b', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>📋 PORESKI PODACI (IZ REŠENJA)</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 20px 0' }}>Fiksni mesečni iznosi iz poreskog rešenja</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.5 }}>
+            Fiksne mesečne akontacije i doprinosi — prepiši iz rešenja o utvrđivanju obaveze (Poresko upravstvo). Ažuriraj kad stigne novo rešenje.
+          </p>
+
+          <div style={{
+            marginBottom: 18, padding: '14px 16px', borderRadius: 12,
+            background: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)',
+          }}>
+            <p style={{ color: 'var(--alert-info-text)', fontSize: 12, fontWeight: 700, margin: '0 0 6px 0' }}>Godišnji limit prihoda (paušal)</p>
+            <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 12px 0', lineHeight: 1.5 }}>
+              Na ovaj iznos pratiš ostvareni promet u KPO. Uobičajeno je 6.000.000 RSD godišnje; proveri važeći propis ili rešenje ako sumnjaš.
+            </p>
+            <div style={{ position: 'relative' }}>
+              <Input
+                type="number"
+                value={profil.godisnjLimit}
+                onChange={set('godisnjLimit')}
+                placeholder="6000000"
+                hasError={ima('godisnjLimit')}
+                style={{ paddingRight: 48 }}
+                disabled={!editMode}
+              />
+              <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>RSD</span>
+            </div>
+            {ima('godisnjLimit') && <Greska tekst="Unesi pozitivan iznos (npr. 6000000)" />}
+          </div>
 
           <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             {([
@@ -308,9 +515,27 @@ export default function SettingsPage() {
                   <Input type="number" value={profil[field.key]} onChange={set(field.key)} placeholder="0" hasError={ima(field.key)} style={{ paddingRight: 48 }} disabled={!editMode} />
                   <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>RSD</span>
                 </div>
-                {ima(field.key) && <Greska tekst="Obavezno polje" />}
+                {ima(field.key) && (
+                  <Greska tekst={field.key === 'mesecniNezaposlenost' ? 'Unesi iznos (0 ako nema obaveze)' : 'Obavezno polje'} />
+                )}
               </div>
             ))}
+          </div>
+
+          <div style={{
+            marginTop: 18, padding: '16px 18px', borderRadius: 12,
+            border: '1px solid var(--border)', background: 'var(--bg-primary)',
+          }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 700, letterSpacing: '0.06em' }}>KONTROLA ZBIRA</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+              <span style={{ color: 'var(--text-primary)', fontSize: 15, fontWeight: 700 }}>Ukupno mesečno (porez + svi doprinosi)</span>
+              <span style={{ color: 'var(--accent)', fontSize: 20, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                {formatRsd(ukupnoMesečno)} <span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 600 }}>RSD</span>
+              </span>
+            </div>
+            <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '10px 0 0 0', lineHeight: 1.45 }}>
+              Uporedi sa rešenjem: zbir bi trebalo da se poklopi sa ukupnim mesečnim obavezama.
+            </p>
           </div>
         </div>
 
@@ -349,7 +574,10 @@ export default function SettingsPage() {
         {/* Notifikacije */}
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#a855f7', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>🔔 NOTIFIKACIJE</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>🔔 NOTIFIKACIJE</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 18px 0', lineHeight: 1.5 }}>
+            Podsetnici za mesečne obaveze (porez i doprinosi) pre roka plaćanja — u skladu sa poreskim kalendarom u aplikaciji.
+          </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
@@ -375,6 +603,8 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
+
+          <PushNotificationSettings />
         </div>
 
         {/* Test samostalnosti — u profilu */}
@@ -446,7 +676,7 @@ export default function SettingsPage() {
             Otkaži
           </button>
           <button onClick={openSaveConfirm}
-            style={{ flex: 1, minWidth: 140, maxWidth: 320, background: sacuvano ? '#00cc8f' : 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340' }}>
+            style={{ flex: 1, minWidth: 140, maxWidth: 320, background: sacuvano ? '#00b884' : 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00C89640' }}>
             {sacuvano ? '✓ Sačuvano!' : 'Sačuvaj izmene'}
           </button>
         </div>

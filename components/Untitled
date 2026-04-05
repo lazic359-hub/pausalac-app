@@ -16,7 +16,7 @@ interface SmartInsightsProps {
 
 const LIMIT_6M = 6_000_000;
 const WARNING_THRESHOLD = 5_000_000;
-const ACCENT = "#00ffb3";
+const ACCENT = "#00C896";
 
 const MONTHS_SR = ["Jan","Feb","Mar","Apr","Maj","Jun","Jul","Avg","Sep","Okt","Nov","Dec"];
 const MONTHS_SR_FULL = ["Januar","Februar","Mart","April","Maj","Jun","Jul","Avgust","Septembar","Oktobar","November","Decembar"];
@@ -192,7 +192,7 @@ function MiniChart({ fakture }: { fakture: KPOFaktura[] }) {
             <Tooltip content={<CustomTooltip />} cursor={{ fill: "rgba(128,128,128,0.05)" }} />
             <Bar dataKey="iznos" radius={[4, 4, 0, 0]}>
               {data.map((_, i) => (
-                <Cell key={i} fill={i === currentMonth ? ACCENT : i < currentMonth ? "#00ffb350" : "rgba(128,128,128,0.1)"} />
+                <Cell key={i} fill={i === currentMonth ? ACCENT : i < currentMonth ? "#00C89650" : "rgba(128,128,128,0.1)"} />
               ))}
             </Bar>
           </BarChart>
@@ -248,7 +248,7 @@ function TestSamostalnosti() {
                   const active = odgovori[i] === val;
                   return (
                     <button key={labelBtn} onClick={() => toggle(i, val)}
-                      style={{ padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", background: active ? (val ? "rgba(255,77,77,0.1)" : "var(--accent-dim)") : "var(--bg-card)", border: active ? `1px solid ${val ? "#ff4d4d60" : "#00ffb340"}` : "1px solid var(--border)", color: active ? (val ? "#ff6b6b" : ACCENT) : "var(--text-muted)" }}>
+                      style={{ padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", background: active ? (val ? "rgba(255,77,77,0.1)" : "var(--accent-dim)") : "var(--bg-card)", border: active ? `1px solid ${val ? "#ff4d4d60" : "#00C89640"}` : "1px solid var(--border)", color: active ? (val ? "#ff6b6b" : ACCENT) : "var(--text-muted)" }}>
                       {labelBtn}
                     </button>
                   );
@@ -260,7 +260,7 @@ function TestSamostalnosti() {
             </div>
           ))}
           {answered === 9 && (
-            <div style={{ borderRadius: 12, padding: "16px", textAlign: "center", fontSize: 13, fontWeight: 700, background: rizican ? "rgba(255,77,77,0.1)" : "var(--accent-dim)", border: `1px solid ${rizican ? "#ff4d4d40" : "#00ffb330"}`, color: rizican ? "#ff6b6b" : ACCENT }}>
+            <div style={{ borderRadius: 12, padding: "16px", textAlign: "center", fontSize: 13, fontWeight: 700, background: rizican ? "rgba(255,77,77,0.1)" : "var(--accent-dim)", border: `1px solid ${rizican ? "#ff4d4d40" : "#00C89630"}`, color: rizican ? "#ff6b6b" : ACCENT }}>
               {rizican ? `⚠️ Visok rizik! ${daCount}/9 faktora ukazuju na prikriveni radni odnos. Konsultuj pravnog savetnika.` : `✓ Nizak rizik. Tvoja poslovna samostalnost izgleda dobro.`}
             </div>
           )}

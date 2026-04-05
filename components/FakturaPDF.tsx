@@ -222,7 +222,9 @@ export default function FakturaPDF({ brojFakture, datum, datumValute, izdavalac,
             <View style={s.konverzijaInner}>
               <Text style={s.konverzijaText}>Dinarska protivvrednost / RSD equivalent:</Text>
               <Text style={s.konverzijaValue}>{formatBrojRSD(ukupnoRSD)}</Text>
-              <Text style={s.konverzijaText}>@ {kurs} RSD/{valuta} (NBS kurs)</Text>
+              <Text style={s.konverzijaText}>
+                @ {kurs} RSD/{valuta} · srednji kurs NBS za {formatDatum(datum)}
+              </Text>
             </View>
           </View>
         )}

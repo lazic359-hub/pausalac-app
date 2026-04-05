@@ -77,15 +77,38 @@ export function getTaxDeadlineForMonth(year: number, month: number): Date {
 }
 
 /**
- * Get next upcoming tax deadline from today (for current or next month).
+ * Kalendar dan u Beogradu (za server cron / push) — konzistentno sa rokovima u Srbiji.
  */
-export function getNextTaxDeadline(): Date {
-  const now = new Date();
+export function belgradeTodayYmdString(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Europe/Belgrade' });
+}
+
+export function belgradeCalendarDate(): Date {
+  const ymd = belgradeTodayYmdString();
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+/**
+ * Get next upcoming tax deadline from today (for current or next month).
+ * @param referenceDate opciono: „danas“ (npr. belgradeCalendarDate() za cron u UTC okruženju)
+ */
+export function getNextTaxDeadline(referenceDate?: Date): Date {
+  const now = referenceDate ? new Date(referenceDate.getTime()) : new Date();
   now.setHours(0, 0, 0, 0);
   const current = getTaxDeadlineForMonth(now.getFullYear(), now.getMonth());
   if (current >= now) return current;
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   return getTaxDeadlineForMonth(nextMonth.getFullYear(), nextMonth.getMonth());
+}
+
+/** Dana do narednog poreskog roka (Beograd), za push cron. */
+export function daysUntilTaxDeadlineBelgrade(): number {
+  const today = belgradeCalendarDate();
+  const deadline = getNextTaxDeadline(today);
+  const t0 = today.getTime();
+  const t1 = deadline.getTime();
+  return Math.ceil((t1 - t0) / (1000 * 60 * 60 * 24));
 }
 
 /**
@@ -97,6 +120,15 @@ export function daysUntilTaxDeadline(): number {
   const deadline = getNextTaxDeadline();
   deadline.setHours(0, 0, 0, 0);
   return Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/** YYYY-MM-DD narednog roka (za deduplikaciju push poruka). */
+export function nextTaxDeadlineRefKeyBelgrade(): string {
+  const d = getNextTaxDeadline(belgradeCalendarDate());
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 /**

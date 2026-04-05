@@ -98,7 +98,7 @@ export default function TestSamostalnosti({ prihodiTekucaGodina }: { prihodiTeku
                       style={{
                         padding: "6px 18px", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer",
                         background: active ? (val ? "#2a0a0a" : "var(--accent-dim)") : "var(--bg-card)",
-                        border: active ? `1px solid ${val ? "#ff4d4d60" : "#00ffb340"}` : "1px solid var(--border)",
+                        border: active ? `1px solid ${val ? "#ff4d4d60" : "#00C89640"}` : "1px solid var(--border)",
                         color: active ? (val ? "#ff6b6b" : ACCENT) : "var(--text-muted)",
                       }}
                     >
@@ -118,7 +118,7 @@ export default function TestSamostalnosti({ prihodiTekucaGodina }: { prihodiTeku
             <div style={{
               borderRadius: 12, padding: "16px", textAlign: "center", fontSize: 13, fontWeight: 700,
               background: rizican ? "#2a0a0a" : "var(--accent-dim)",
-              border: `1px solid ${rizican ? "#ff4d4d40" : "#00ffb330"}`,
+              border: `1px solid ${rizican ? "#ff4d4d40" : "#00C89630"}`,
               color: rizican ? "#ff6b6b" : ACCENT,
             }}>
               {rizican

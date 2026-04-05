@@ -1,13 +1,21 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { createClient, User } from '@supabase/supabase-js'
+import type { User } from '@supabase/supabase-js'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { BottomNav } from '@/components/BottomNav'
+import { ConfirmModal } from '@/components/ConfirmModal'
 import jsPDF from 'jspdf'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { FileSpreadsheet, FileDown, Pencil, Trash2, Info } from 'lucide-react'
+import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu, readProfilFromStorage } from '@/lib/profile'
+import { brojRacunaZaPrikaz } from '@/lib/kpo-prihod'
+import { formatOfflineTimestamp, loadOfflineKpoPrihodi, loadOfflineProfile, saveOfflineKpoPrihodi } from '@/lib/offline-data-cache'
+import { isProFromRow } from '@/lib/plan'
+import { ProUpgradeModal } from '@/components/ProUpgradeModal'
 
-const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabase = getSupabaseBrowser()
 
 type Valuta = 'RSD' | 'EUR' | 'USD'
 
@@ -29,13 +37,54 @@ const KVARTALI = {
   Q4: ['10', '11', '12'],
 }
 
+type SortKpo = 'datum-asc' | 'datum-desc' | 'iznos-asc' | 'iznos-desc'
+
+function sortKpoRows(rows: Prihod[], key: SortKpo): Prihod[] {
+  const copy = [...rows]
+  if (key === 'datum-asc') {
+    copy.sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime())
+  } else if (key === 'datum-desc') {
+    copy.sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime())
+  } else if (key === 'iznos-asc') {
+    copy.sort((a, b) => (a.iznos_rsd ?? 0) - (b.iznos_rsd ?? 0))
+  } else {
+    copy.sort((a, b) => (b.iznos_rsd ?? 0) - (a.iznos_rsd ?? 0))
+  }
+  return copy
+}
+
 export default function KpoPage() {
+  const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [prihodi, setPrihodi] = useState<Prihod[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState<'sve' | 'Q1' | 'Q2' | 'Q3' | 'Q4'>('sve')
   const [selectedGodina, setSelectedGodina] = useState<number>(new Date().getFullYear())
+  const [sortBy, setSortBy] = useState<SortKpo>('datum-asc')
+  const [brisanjeId, setBrisanjeId] = useState<string | null>(null)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editSaving, setEditSaving] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState({
+    klijent: '',
+    iznos: '',
+    valuta: 'RSD' as Valuta,
+    datum: '',
+    napomena: '',
+  })
+  const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null)
+  const [kpoLimitRsd, setKpoLimitRsd] = useState(6_000_000)
+  const [kpoAsOf, setKpoAsOf] = useState<string | null>(null)
+  const [proEntitled, setProEntitled] = useState(false)
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+
+  useEffect(() => {
+    const sync = () => setKpoLimitRsd(getKpoLimitRsdFromStorage())
+    sync()
+    window.addEventListener('pausalac-profil-updated', sync)
+    return () => window.removeEventListener('pausalac-profil-updated', sync)
+  }, [])
 
   useEffect(() => {
     const init = async () => {
@@ -50,19 +99,60 @@ export default function KpoPage() {
   // Refetch when page gains focus so KPO stays in sync with Dashboard '+ Prihod' entries
   useEffect(() => {
     if (!user) return
-    const onFocus = () => ucitajPrihode(user.id)
+    const onFocus = () => {
+      setKpoLimitRsd(getKpoLimitRsdFromStorage())
+      void ucitajPrihode(user.id)
+    }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
   }, [user])
 
+  useEffect(() => {
+    if (!user) return
+    const syncPro = async () => {
+      if (typeof window !== 'undefined' && !navigator.onLine) {
+        const snap = loadOfflineProfile(user.id)
+        setProEntitled(isProFromRow(snap?.data?.plan, snap?.data?.pro_until))
+        return
+      }
+      const { data } = await supabase.from('profiles').select('plan, pro_until').eq('id', user.id).maybeSingle()
+      const row = data as { plan?: string | null; pro_until?: string | null } | null
+      setProEntitled(isProFromRow(row?.plan, row?.pro_until))
+    }
+    void syncPro()
+  }, [user])
+
   const ucitajPrihode = async (userId: string) => {
     setLoading(true)
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      const snap = loadOfflineKpoPrihodi(userId)
+      if (snap?.data.rows?.length) {
+        setPrihodi(snap.data.rows as Prihod[])
+        setKpoAsOf(snap.updatedAt)
+      } else {
+        setPrihodi([])
+        setKpoAsOf(null)
+      }
+      setLoading(false)
+      return
+    }
     const { data, error } = await supabase
       .from('prihodi')
       .select('*')
       .eq('user_id', userId)
       .order('datum', { ascending: true })
-    if (!error && data) setPrihodi((data as Prihod[]) || [])
+    if (!error && data) {
+      const rows = (data as Prihod[]) || []
+      setPrihodi(rows)
+      saveOfflineKpoPrihodi(userId, rows)
+      setKpoAsOf(new Date().toISOString())
+    } else {
+      const snap = loadOfflineKpoPrihodi(userId)
+      if (snap?.data.rows?.length) {
+        setPrihodi(snap.data.rows as Prihod[])
+        setKpoAsOf(snap.updatedAt)
+      }
+    }
     setLoading(false)
   }
 
@@ -83,7 +173,9 @@ export default function KpoPage() {
     return KVARTALI[filter].includes(mes)
   })
 
-  const filtriranesBrojevima = filtrirane.map(p => ({
+  const filtriraneSortirane = sortKpoRows(filtrirane, sortBy)
+
+  const filtriranesBrojevima = filtriraneSortirane.map(p => ({
     ...p,
     redniBroj: redniBrojMap.get(p.id) ?? 0,
   }))
@@ -104,7 +196,14 @@ export default function KpoPage() {
   }
 
   const ukupnoRSD = filtriranePoGodini.reduce((sum, p) => sum + (p.iznos_rsd ?? 0), 0)
+  const ukupnoSaPocetkom = getUkupnoPrihodZaGodinu(ukupnoRSD, selectedGodina)
   const ukupnoFilter = filtrirane.reduce((sum, p) => sum + (p.iznos_rsd ?? 0), 0)
+
+  const limitPctRaw = kpoLimitRsd > 0 ? (ukupnoSaPocetkom / kpoLimitRsd) * 100 : 0
+  const limitBarFillPct = Math.min(100, limitPctRaw)
+  const limitTrackColor =
+    limitPctRaw >= 100 ? '#ef4444' : limitPctRaw >= 80 ? '#eab308' : '#22c55e'
+  const preostaloDoLimita = Math.max(0, kpoLimitRsd - ukupnoSaPocetkom)
 
   const formatDatum = (d: string) => {
     const [god, mes, dan] = d.split('-')
@@ -119,15 +218,110 @@ export default function KpoPage() {
     return formatIznos(p.iznos) + ' ' + (p.valuta || 'EUR')
   }
 
-  // Opis: Račun br. [broj]/[godina] - [Ime Klijenta]
-  const formatOpis = (p: { redniBroj: number; klijent: string }) =>
-    `Račun br. ${p.redniBroj}/${selectedGodina} - ${p.klijent}`
-
   const nbsTooltipText = (p: Prihod & { redniBroj: number }) => {
     const kursStr = parseKursIzNapomene(p.napomena)
     if (p.valuta === 'RSD') return 'Iznos u RSD (bez konverzije)'
-    if (kursStr) return `Srednji kurs NBS na dan ${formatDatum(p.datum)}: ${parseFloat(kursStr).toFixed(2)}`
+    if (kursStr) {
+      const fromFaktura = (p.napomena ?? '').includes('datum fakture')
+      const k = parseFloat(kursStr)
+      return fromFaktura
+        ? `Srednji kurs NBS na datum fakture (sa fakture): ${k.toFixed(4)}`
+        : `Srednji kurs NBS na dan naplate ${formatDatum(p.datum)}: ${k.toFixed(4)}`
+    }
     return `Srednji kurs NBS (vidi napomenu)`
+  }
+
+  const obrisiPrihod = async (id: string) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setToast({ message: 'Nema veze — brisanje nije moguće offline.', tone: 'danger' })
+      setBrisanjeId(null)
+      setTimeout(() => setToast(null), 3500)
+      return
+    }
+    const { error } = await supabase.from('prihodi').delete().eq('id', id)
+    if (!error) {
+      setPrihodi(prev => {
+        const next = prev.filter(p => p.id !== id)
+        if (user) saveOfflineKpoPrihodi(user.id, next)
+        return next
+      })
+      setKpoAsOf(new Date().toISOString())
+      setBrisanjeId(null)
+      setToast({ message: 'Prihod obrisan', tone: 'success' })
+      setTimeout(() => setToast(null), 3000)
+    } else {
+      setToast({ message: error.message, tone: 'danger' })
+      setTimeout(() => setToast(null), 4500)
+    }
+  }
+
+  const otvoriIzmenuPrihoda = (p: Prihod) => {
+    setEditId(p.id)
+    setEditForm({
+      klijent: p.klijent,
+      iznos: String(p.iznos),
+      valuta: p.valuta,
+      datum: p.datum,
+      napomena: p.napomena ?? '',
+    })
+    setEditOpen(true)
+  }
+
+  const sacuvajIzmenuPrihoda = async () => {
+    if (!user || !editId) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setToast({ message: 'Nema veze — izmena nije moguća offline.', tone: 'danger' })
+      setTimeout(() => setToast(null), 3500)
+      return
+    }
+    const klijent = editForm.klijent.trim()
+    const iznosNum = parseFloat(String(editForm.iznos).replace(',', '.'))
+    if (!klijent || Number.isNaN(iznosNum) || iznosNum <= 0) {
+      setToast({ message: 'Proveri klijenta i iznos.', tone: 'danger' })
+      setTimeout(() => setToast(null), 3500)
+      return
+    }
+    setEditSaving(true)
+    let iznos_rsd = editForm.valuta === 'RSD' ? iznosNum : 0
+    let kursZaNapomenu: number | null = null
+    if (editForm.valuta !== 'RSD') {
+      try {
+        const res = await fetch(`/api/kurs?datum=${encodeURIComponent(editForm.datum)}&valuta=${editForm.valuta}`)
+        const data = await res.json()
+        const kurs = data.rate ?? (editForm.valuta === 'USD' ? 108 : 117)
+        kursZaNapomenu = kurs
+        iznos_rsd = Math.round(iznosNum * kurs)
+      } catch {
+        kursZaNapomenu = editForm.valuta === 'USD' ? 108 : 117
+        iznos_rsd = Math.round(iznosNum * kursZaNapomenu)
+      }
+    }
+    let napomenaOut = editForm.napomena.trim().replace(/\s*\[Kurs 1 (?:EUR|USD) = [^\]]+\]/gi, '').trim()
+    if (editForm.valuta !== 'RSD' && kursZaNapomenu != null) {
+      napomenaOut = (napomenaOut ? napomenaOut + ' ' : '') + `[Kurs 1 ${editForm.valuta} = ${kursZaNapomenu.toFixed(4)} RSD]`
+    }
+    const { error } = await supabase
+      .from('prihodi')
+      .update({
+        klijent,
+        iznos: iznosNum,
+        valuta: editForm.valuta,
+        iznos_rsd,
+        datum: editForm.datum,
+        napomena: napomenaOut || null,
+      })
+      .eq('id', editId)
+    setEditSaving(false)
+    if (!error) {
+      await ucitajPrihode(user.id)
+      setEditOpen(false)
+      setEditId(null)
+      setToast({ message: 'Prihod ažuriran', tone: 'success' })
+      setTimeout(() => setToast(null), 3000)
+    } else {
+      setToast({ message: error.message, tone: 'danger' })
+      setTimeout(() => setToast(null), 4500)
+    }
   }
 
   const preuzmiPDF = async () => {
@@ -147,29 +341,29 @@ export default function KpoPage() {
       .replace(/[ž]/g, 'z').replace(/[Ž]/g, 'Z')
       .replace(/[đ]/g, 'dj').replace(/[Đ]/g, 'Dj')
 
-    const profilRaw = typeof window !== 'undefined' ? localStorage.getItem('pausalac_profil') : null
-    const profil = profilRaw ? JSON.parse(profilRaw) : {}
-    const nazivFirme = (profil.nazivFirme && String(profil.nazivFirme).trim()) ? ascii(profil.nazivFirme) : '________________'
+    const profil = readProfilFromStorage() ?? {}
+    const nazivFirme = (profil.nazivFirme && String(profil.nazivFirme).trim()) ? ascii(String(profil.nazivFirme)) : '________________'
     const pib = (profil.pib != null && String(profil.pib).trim() !== '') ? String(profil.pib) : '________________'
-    const adresa = ascii(profil.sediste || 'Adresa')
+    const adresa = ascii(String(profil.sediste ?? 'Adresa'))
 
     const formatIznosPDF = (iznos: number) =>
       new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos) + ' RSD'
 
-    const sortirane = [...filtrirane].sort(
-      (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
-    )
+    const sortirane = filtriraneSortirane
 
-    // Table column layout (mm): Red. br. (narrow) | Datum (standard) | Opis (wide) | Iznos RSD (standard)
-    const colW1 = 12
+    /** Službeni obrazac KPO: Red. br. | Datum naplate | Naziv i adresa kupca | Broj računa | Iznos u RSD */
+    const colW1 = 10
     const colW2 = 22
-    const colW4 = 28
-    const colW3 = contentWidth - colW1 - colW2 - colW4
+    const colW4 = 24
+    const colW5 = 28
+    const colW3 = contentWidth - colW1 - colW2 - colW4 - colW5
     const x1 = margin
-    const x2 = margin + colW1
-    const x3 = margin + colW1 + colW2
-    const x4 = margin + colW1 + colW2 + colW3
-    const rowHeightHeader = 8
+    const x2 = x1 + colW1
+    const x3 = x2 + colW2
+    const x4 = x3 + colW3
+    const x5 = x4 + colW4
+    const x6 = x5 + colW5
+    const rowHeightHeader = 10
     const lineHeight = 5
     const cellPadding = 2
 
@@ -184,16 +378,33 @@ export default function KpoPage() {
       }
     }
 
-    // Helper: draw thin black border for one row (full width of table)
-    const drawRowBorders = (y: number, h: number) => {
+    const drawRowBorders5 = (y: number, h: number) => {
       doc.setDrawColor(0, 0, 0)
-      doc.line(x1, y, x1 + contentWidth, y)
-      doc.line(x1, y + h, x1 + contentWidth, y + h)
-      doc.line(x1, y, x1, y + h)
-      doc.line(x2, y, x2, y + h)
-      doc.line(x3, y, x3, y + h)
-      doc.line(x4, y, x4, y + h)
-      doc.line(x4 + colW4, y, x4 + colW4, y + h)
+      doc.line(x1, y, x6, y)
+      doc.line(x1, y + h, x6, y + h)
+      ;[x1, x2, x3, x4, x5, x6].forEach(x => {
+        doc.line(x, y, x, y + h)
+      })
+    }
+
+    const drawHeaderRow = (top: number) => {
+      doc.setDrawColor(0, 0, 0)
+      doc.rect(x1, top, colW1, rowHeightHeader, 'S')
+      doc.rect(x2, top, colW2, rowHeightHeader, 'S')
+      doc.rect(x3, top, colW3, rowHeightHeader, 'S')
+      doc.rect(x4, top, colW4, rowHeightHeader, 'S')
+      doc.rect(x5, top, colW5, rowHeightHeader, 'S')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7)
+      doc.text('Red. br.', x1 + colW1 / 2, top + 4, { align: 'center' })
+      doc.text('Datum naplate', x2 + colW2 / 2, top + 4, { align: 'center' })
+      doc.setFontSize(6.5)
+      doc.text('Naziv i adresa', x3 + colW3 / 2, top + 3.5, { align: 'center' })
+      doc.text('kupca', x3 + colW3 / 2, top + 7, { align: 'center' })
+      doc.setFontSize(7)
+      doc.text('Broj racuna', x4 + colW4 / 2, top + 4, { align: 'center' })
+      doc.text('Iznos u RSD', x5 + colW5 / 2, top + 4, { align: 'center' })
+      doc.setFont('helvetica', 'normal')
     }
 
     // ——— Top-left: Firma, PIB, Adresa ———
@@ -218,76 +429,55 @@ export default function KpoPage() {
     doc.setDrawColor(0, 0, 0)
     doc.line(pageWidth / 2 - titleWidth / 2, titleY + 1.5, pageWidth / 2 + titleWidth / 2, titleY + 1.5)
 
-    // ——— Table header (4 columns, white background, thin black borders) ———
     const tableTop = titleY + 10
-    doc.setDrawColor(0, 0, 0)
-    doc.rect(x1, tableTop, colW1, rowHeightHeader, 'S')
-    doc.rect(x2, tableTop, colW2, rowHeightHeader, 'S')
-    doc.rect(x3, tableTop, colW3, rowHeightHeader, 'S')
-    doc.rect(x4, tableTop, colW4, rowHeightHeader, 'S')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
-    doc.text('Red. br.', x1 + colW1 / 2, tableTop + 5.2, { align: 'center' })
-    doc.text('Datum', x2 + colW2 / 2, tableTop + 5.2, { align: 'center' })
-    doc.text('Opis (Klijent i Broj racuna)', x3 + colW3 / 2, tableTop + 5.2, { align: 'center' })
-    doc.text('Iznos (RSD)', x4 + colW4 / 2, tableTop + 5.2, { align: 'center' })
-    doc.setFont('helvetica', 'normal')
+    drawHeaderRow(tableTop)
 
     let y = tableTop + rowHeightHeader
     const bottomY = pageHeight - 35
 
     sortirane.forEach((p) => {
       const rb = redniBrojMap.get(p.id) ?? 0
-      const kursStr = parseKursIzNapomene(p.napomena)
-      const opisText = p.valuta !== 'RSD' && kursStr
-        ? ascii(`Racun br. ${rb}, klijent: ${p.klijent} (Kurs: ${parseFloat(kursStr).toFixed(2)}).`)
-        : ascii(`Racun br. ${rb}, klijent: ${p.klijent}.`)
       const datumStr = formatDatum(p.datum)
+      const brojRacStr = brojRacunaZaPrikaz(p.napomena, rb, selectedGodina)
 
       doc.setFontSize(9)
-      const opisLines = doc.splitTextToSize(opisText, Math.max(colW3 - cellPadding * 2, 10))
-      const numLines = Math.max(1, opisLines.length)
+      const kupacLines = doc.splitTextToSize(ascii(p.klijent), Math.max(colW3 - cellPadding * 2, 10))
+      const brojRacLines = doc.splitTextToSize(ascii(brojRacStr), Math.max(colW4 - cellPadding * 2, 8))
+      const numLines = Math.max(1, kupacLines.length, brojRacLines.length)
       const rowH = Math.max(rowHeightHeader, numLines * lineHeight + cellPadding)
 
       if (y + rowH > bottomY) {
         doc.addPage()
         y = margin + rowHeightHeader
-        doc.setDrawColor(0, 0, 0)
-        doc.rect(x1, margin, colW1, rowHeightHeader, 'S')
-        doc.rect(x2, margin, colW2, rowHeightHeader, 'S')
-        doc.rect(x3, margin, colW3, rowHeightHeader, 'S')
-        doc.rect(x4, margin, colW4, rowHeightHeader, 'S')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(9)
-        doc.text('Red. br.', x1 + colW1 / 2, margin + 5.2, { align: 'center' })
-        doc.text('Datum', x2 + colW2 / 2, margin + 5.2, { align: 'center' })
-        doc.text('Opis (Klijent i Broj racuna)', x3 + colW3 / 2, margin + 5.2, { align: 'center' })
-        doc.text('Iznos (RSD)', x4 + colW4 / 2, margin + 5.2, { align: 'center' })
-        doc.setFont('helvetica', 'normal')
+        drawHeaderRow(margin)
         y = margin + rowHeightHeader
       }
 
-      drawRowBorders(y, rowH)
+      drawRowBorders5(y, rowH)
       doc.setTextColor(0, 0, 0)
-      const textBaselineY = y + rowH / 2
-      doc.text(String(rb), x1 + cellPadding, textBaselineY)
-      doc.text(datumStr, x2 + cellPadding, textBaselineY)
+      const midY = y + rowH / 2 + 1.5
+      doc.text(String(rb), x1 + cellPadding, midY)
+      doc.text(datumStr, x2 + cellPadding, midY)
       let lineY = y + cellPadding + 3.5
-      opisLines.forEach((line: string) => {
+      kupacLines.forEach((line: string) => {
         doc.text(line, x3 + cellPadding, lineY)
         lineY += lineHeight
       })
-      doc.text(formatIznosPDF(p.iznos_rsd ?? 0), x4 + colW4 - cellPadding, textBaselineY, { align: 'right' })
+      lineY = y + cellPadding + 3.5
+      brojRacLines.forEach((line: string) => {
+        doc.text(line, x4 + cellPadding, lineY)
+        lineY += lineHeight
+      })
+      doc.text(formatIznosPDF(p.iznos_rsd ?? 0), x5 + colW5 - cellPadding, midY, { align: 'right' })
       y += rowH
     })
 
-    // ——— UKUPNO row (bold) ———
     const ukupnoRowH = 9
-    drawRowBorders(y, ukupnoRowH)
+    drawRowBorders5(y, ukupnoRowH)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
-    doc.text('UKUPNO:', x3 + cellPadding, y + ukupnoRowH / 2)
-    doc.text(formatIznosPDF(ukupnoFilter), x4 + colW4 - cellPadding, y + ukupnoRowH / 2, { align: 'right' })
+    doc.text('UKUPNO:', x3 + cellPadding, y + ukupnoRowH / 2 + 0.5)
+    doc.text(formatIznosPDF(ukupnoFilter), x5 + colW5 - cellPadding, y + ukupnoRowH / 2, { align: 'right' })
     doc.setFont('helvetica', 'normal')
     y += ukupnoRowH + 12
 
@@ -307,42 +497,44 @@ export default function KpoPage() {
 
   const preuzmiExcel = async () => {
     const XLSX = await import('xlsx-js-style')
-    const sortirane = [...filtrirane].sort(
-      (a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime()
-    )
+    const sortirane = filtriraneSortirane
 
     const formatDatumExcel = (d: string) => {
       const [god, mes, dan] = d.split('-')
       return `${dan}.${mes}.${god}`
     }
 
-    const redovi = sortirane.map((p) => ({
-      'Red. br.': redniBrojMap.get(p.id) ?? 0,
-      'Datum': formatDatumExcel(p.datum),
-      'Opis': `Račun br. ${redniBrojMap.get(p.id) ?? 0}, ${p.klijent}`,
-      'Iznos orig.': p.valuta === 'RSD' ? `${formatIznos(p.iznos)} RSD` : `${formatIznos(p.iznos)} ${p.valuta || 'EUR'}`,
-      'Iznos (RSD)': p.iznos_rsd ?? 0,
-    }))
+    const redovi = sortirane.map((p) => {
+      const rb = redniBrojMap.get(p.id) ?? 0
+      return {
+        'Red. br.': rb,
+        'Datum naplate': formatDatumExcel(p.datum),
+        'Naziv i adresa kupca': p.klijent,
+        'Broj računa': brojRacunaZaPrikaz(p.napomena, rb, selectedGodina),
+        'Iznos orig.': p.valuta === 'RSD' ? `${formatIznos(p.iznos)} RSD` : `${formatIznos(p.iznos)} ${p.valuta || 'EUR'}`,
+        'Iznos u RSD': p.iznos_rsd ?? 0,
+      }
+    })
 
     redovi.push({
       'Red. br.': '',
-      'Datum': '',
-      'Opis': 'Total',
+      'Datum naplate': '',
+      'Naziv i adresa kupca': 'UKUPNO',
+      'Broj računa': '',
       'Iznos orig.': '',
-      'Iznos (RSD)': ukupnoFilter,
+      'Iznos u RSD': ukupnoFilter,
     } as any)
 
     const ws = XLSX.utils.json_to_sheet(redovi)
 
-    const zaglavlje = ['A1', 'B1', 'C1', 'D1', 'E1']
+    const zaglavlje = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1']
     zaglavlje.forEach(ref => {
       if (ws[ref]) (ws[ref] as any).s = { font: { bold: true } }
     })
 
-    // Ensure Iznos (RSD) (column E) is raw number so formulas can sum it
     const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
     for (let r = 1; r <= range.e.r; r++) {
-      const ref = XLSX.utils.encode_cell({ r, c: 4 })
+      const ref = XLSX.utils.encode_cell({ r, c: 5 })
       const cell = ws[ref]
       if (cell && typeof cell.v === 'number') {
         cell.t = 'n'
@@ -352,8 +544,8 @@ export default function KpoPage() {
     }
 
     ws['!cols'] = [
-      { wch: 8 }, { wch: 12 }, { wch: 48 },
-      { wch: 18 }, { wch: 16 },
+      { wch: 8 }, { wch: 14 }, { wch: 36 }, { wch: 16 },
+      { wch: 16 }, { wch: 16 },
     ]
 
     const wb = XLSX.utils.book_new()
@@ -374,172 +566,340 @@ export default function KpoPage() {
   }
 
   if (!user) {
+    router.replace('/login?next=/kpo')
     return (
-      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-        <p style={{ fontSize: 48, marginBottom: 16 }}>📒</p>
-        <p style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Prijavite se</p>
-        <p style={{ color: 'var(--text-muted)', marginBottom: 24, textAlign: 'center' }}>Da biste videli Knjigu prihoda (KPO), morate biti prijavljeni.</p>
-        <a href="/" style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, padding: '12px 24px', borderRadius: 12, textDecoration: 'none' }}>
-          Nazad na početnu
-        </a>
+      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>Preusmeravam na prijavu…</span>
       </div>
     )
   }
 
+  const inp = {
+    width: '100%',
+    boxSizing: 'border-box' as const,
+    background: 'var(--bg-primary)',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    padding: '12px 16px',
+    color: 'var(--text-primary)',
+    fontSize: 16,
+    outline: 'none',
+    marginBottom: 12,
+  }
+
+  const kpoGridCols = '36px 88px minmax(96px,1.25fr) 96px 72px 86px 76px'
+
   return (
-    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
+    <div className="kpo-page" style={{ color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
 
-      {/* Header */}
-      <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>←</button>
-          <span style={{ fontSize: 18 }}>📒</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Arhiva i KPO</span>
+      {toast && (
+        <div style={{
+          position: 'fixed', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 9999,
+          background: toast.tone === 'success' ? '#22c55e' : 'var(--alert-danger-solid)', color: '#fff', fontWeight: 600, fontSize: 14, padding: '12px 24px',
+          borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          {toast.message}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      )}
+
+      <ConfirmModal
+        open={brisanjeId != null}
+        message="Da li si siguran da želiš da obrišeš ovaj prihod?"
+        confirmText="Da, obriši"
+        cancelText="Ne"
+        onCancel={() => setBrisanjeId(null)}
+        onConfirm={() => {
+          if (!brisanjeId) return
+          void obrisiPrihod(brisanjeId)
+        }}
+      />
+
+      <ProUpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
+
+      {editOpen && (
+        <div
+          className="kpo-modal-overlay"
+          onClick={() => !editSaving && setEditOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="kpo-modal"
+            onClick={e => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Izmena prihoda"
+          >
+            <div className="kpo-modal-head">
+              <h2 className="kpo-modal-title">Izmeni prihod</h2>
+              <button type="button" className="kpo-modal-close" disabled={editSaving} onClick={() => setEditOpen(false)} aria-label="Zatvori">×</button>
+            </div>
+            <div className="kpo-modal-body">
+              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Klijent</label>
+              <input type="text" value={editForm.klijent} onChange={e => setEditForm(f => ({ ...f, klijent: e.target.value }))} style={inp} />
+              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
+                <input type="number" value={editForm.iznos} onChange={e => setEditForm(f => ({ ...f, iznos: e.target.value }))} style={{ ...inp, marginBottom: 0, flex: 1 }} />
+                <select value={editForm.valuta} onChange={e => setEditForm(f => ({ ...f, valuta: e.target.value as Valuta }))} style={{ ...inp, marginBottom: 0, minWidth: 88 }}>
+                  <option value="RSD">RSD</option>
+                  <option value="EUR">EUR</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Datum</label>
+              <input type="date" value={editForm.datum} onChange={e => setEditForm(f => ({ ...f, datum: e.target.value }))} style={inp} />
+              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, fontWeight: 700, marginBottom: 6 }}>Napomena</label>
+              <input type="text" value={editForm.napomena} onChange={e => setEditForm(f => ({ ...f, napomena: e.target.value }))} style={inp} />
+              <button
+                type="button"
+                className="kpo-modal-save"
+                onClick={() => void sacuvajIzmenuPrihoda()}
+                disabled={editSaving}
+                style={{ opacity: editSaving ? 0.85 : 1, cursor: editSaving ? 'not-allowed' : 'pointer' }}
+              >
+                {editSaving ? 'Čuvanje…' : 'Sačuvaj izmene'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <header className="kpo-header">
+        <div className="kpo-title-block">
+          <button type="button" className="kpo-back-btn" onClick={() => window.history.back()} aria-label="Nazad">←</button>
+          <span className="kpo-title-emoji" aria-hidden>📒</span>
+          <div className="kpo-title-text">
+            <span className="kpo-title-kicker">Evidencija</span>
+            <span className="kpo-title-main">Arhiva i KPO</span>
+          </div>
+        </div>
+        <div className="kpo-header-actions">
           <ThemeToggle />
-          <button
-            onClick={preuzmiExcel}
-            style={{ background: '#1a7a4a', color: '#fff', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: '1px solid #22c55e40', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            📊 Excel
+          <button type="button" className="kpo-export-btn kpo-export-btn--excel" onClick={() => void preuzmiExcel()}>
+            <FileSpreadsheet size={20} strokeWidth={2.25} aria-hidden />
+            Excel
           </button>
           <button
-            onClick={preuzmiPDF}
-            style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 12, padding: '8px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+            type="button"
+            className="kpo-export-btn kpo-export-btn--pdf"
+            onClick={() => {
+              if (!proEntitled) {
+                setUpgradeOpen(true)
+                return
+              }
+              void preuzmiPDF()
+            }}
           >
-            ⬇️ PDF
+            <FileDown size={20} strokeWidth={2.25} aria-hidden />
+            PDF
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="page-content" style={{ maxWidth: 720, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
+      <div className="page-content dashboard-main-column" style={{ padding: '22px 16px 100px 16px' }}>
+        {kpoAsOf && (
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 14px 0', fontWeight: 600 }}>
+            Poslednje ažuriranje: {formatOfflineTimestamp(kpoAsOf)}
+          </p>
+        )}
 
-        {/* Ukupan promet */}
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>UKUPAN PROMET {selectedGodina}.</p>
-            <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>{formatIznos(ukupnoRSD)} <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>RSD</span></p>
+        <div className="kpo-stat-grid">
+          <div className="kpo-stat-card">
+            <p className="kpo-stat-label">Ukupan promet ({selectedGodina})</p>
+            <p className="kpo-stat-value">
+              {formatIznos(ukupnoSaPocetkom)}
+              <span className="kpo-stat-unit">RSD</span>
+            </p>
+            {ukupnoSaPocetkom !== ukupnoRSD && (
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0 0' }}>
+                U aplikaciji: {formatIznos(ukupnoRSD)} RSD · uključen početni prihod za godinu
+              </p>
+            )}
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>BROJ PRIHODA</p>
-            <p style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 28, margin: 0 }}>{filtriranePoGodini.length}</p>
+          <div className="kpo-stat-card kpo-stat-card--muted">
+            <p className="kpo-stat-label">Broj prihoda</p>
+            <p className="kpo-stat-value">{filtriranePoGodini.length}</p>
           </div>
         </div>
 
-        {/* Godišnji filter */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
-          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Godina:</span>
+        <div className="kpo-limit-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 14, flexWrap: 'wrap' }}>
+            <div>
+              <p className="kpo-filter-label" style={{ marginBottom: 6 }}>Godišnji limit (paušal)</p>
+              <p style={{ color: 'var(--text-primary)', fontSize: 16, fontWeight: 800, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                {formatIznos(kpoLimitRsd)} <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>RSD</span>
+              </p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <p className="kpo-filter-label" style={{ marginBottom: 6 }}>Preostalo do limita</p>
+              <p style={{ color: limitTrackColor, fontWeight: 800, fontSize: 20, margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                {formatIznos(preostaloDoLimita)} <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>RSD</span>
+              </p>
+            </div>
+          </div>
+          <div className="kpo-limit-track" aria-hidden>
+            <div className="kpo-limit-marker-80" title="80% limita" />
+            <div
+              className="kpo-limit-fill"
+              style={{
+                width: `${limitBarFillPct}%`,
+                background: limitTrackColor,
+                boxShadow: `0 0 24px color-mix(in srgb, ${limitTrackColor} 50%, transparent)`,
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 12, fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>
+            <span>Iskorišćeno: <strong style={{ color: 'var(--text-primary)' }}>{limitPctRaw.toFixed(1)}%</strong></span>
+            <span style={{ fontWeight: 600 }}>
+              {limitPctRaw >= 100 ? 'Limit dostignut ili prekoračen' : limitPctRaw >= 80 ? 'Blizu limita (≥80%)' : 'U okviru limita'}
+            </span>
+          </div>
+          <p style={{ margin: '12px 0 0 0', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.45 }}>
+            Godišnji limit prihoda podešavaš u{' '}
+            <Link href="/settings" style={{ color: 'var(--accent)', fontWeight: 600 }}>Podešavanjima profila</Link>.
+          </p>
+        </div>
+
+        <p className="kpo-filter-label">Godina</p>
+        <div className="kpo-segment" style={{ marginBottom: 14 }}>
           {[2022, 2023, 2024, 2025, 2026].map(g => (
             <button
               key={g}
+              type="button"
+              className={`kpo-segment-btn${selectedGodina === g ? ' kpo-segment-btn--active' : ''}`}
               onClick={() => setSelectedGodina(g)}
-              style={{
-                background: selectedGodina === g ? 'var(--accent)' : 'var(--bg-card)',
-                color: selectedGodina === g ? '#000' : 'var(--text-muted)',
-                fontWeight: selectedGodina === g ? 700 : 400,
-                fontSize: 13,
-                padding: '6px 12px',
-                borderRadius: 10,
-                border: `1px solid ${selectedGodina === g ? 'var(--accent)' : 'var(--border)'}`,
-                cursor: 'pointer',
-              }}
             >
               {g}
             </button>
           ))}
         </div>
 
-        {/* Kvartalni filteri */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <p className="kpo-filter-label">Period (kvartal)</p>
+        <div className="kpo-segment kpo-segment--quarters" style={{ marginBottom: 16 }}>
           {(['sve', 'Q1', 'Q2', 'Q3', 'Q4'] as const).map(k => (
             <button
               key={k}
+              type="button"
+              className={`kpo-segment-btn${filter === k ? ' kpo-segment-btn--active' : ''}`}
               onClick={() => setFilter(k)}
-              style={{
-                flex: 1,
-                background: filter === k ? 'var(--accent)' : 'var(--bg-card)',
-                color: filter === k ? '#000' : 'var(--text-muted)',
-                fontWeight: filter === k ? 700 : 400,
-                fontSize: 13,
-                padding: '8px 0',
-                borderRadius: 10,
-                border: `1px solid ${filter === k ? 'var(--accent)' : 'var(--border)'}`,
-                cursor: 'pointer',
-              }}
             >
               {k === 'sve' ? 'Sve' : k}
             </button>
           ))}
         </div>
 
-        {/* Tabela */}
+        <p className="kpo-filter-label">Sortiranje</p>
+        <div className="kpo-sort-bar" role="group" aria-label="Sortiranje redova">
+          {([
+            { key: 'datum-asc' as const, label: 'Datum ↑' },
+            { key: 'datum-desc' as const, label: 'Datum ↓' },
+            { key: 'iznos-asc' as const, label: 'Iznos ↑' },
+            { key: 'iznos-desc' as const, label: 'Iznos ↓' },
+          ]).map(opt => (
+            <button
+              key={opt.key}
+              type="button"
+              className={`kpo-sort-btn${sortBy === opt.key ? ' kpo-sort-btn--active' : ''}`}
+              onClick={() => setSortBy(opt.key)}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-            Učitavanje prihoda...
+          <div className="kpo-loading">
+            <span className="spinner" aria-hidden />
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Učitavanje prihoda…</span>
           </div>
         ) : filtrirane.length === 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 20px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            <p style={{ fontSize: 48, margin: '0 0 12px 0' }}>📋</p>
-            <p style={{ fontSize: 16, margin: 0 }}>Nema prihoda za ovaj period.</p>
+          <div className="kpo-empty">
+            <p style={{ fontSize: 40, margin: '0 0 12px 0', lineHeight: 1 }} aria-hidden>📋</p>
+            <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px 0' }}>Nema prihoda za ovaj period</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, marginBottom: 16, lineHeight: 1.45 }}>Promeni godinu ili kvartal, ili dodaj prihod iz Pregleda / Prihoda.</p>
           </div>
         ) : (
-          <div className="table-scroll-wrap" style={{ marginLeft: 0, marginRight: 0, paddingLeft: 0, paddingRight: 0 }}>
-          <div className="table-min-width kpo-table" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', minWidth: 480 }}>
-            {/* Header tabele */}
-            <div className="kpo-table-header" style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Red. br.</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Datum</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>Opis (Račun br. i Klijent)</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>Iznos orig.</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, textAlign: 'right' }}>Iznos RSD</p>
+          <div className="table-scroll-wrap kpo-scroll-sticky" style={{ marginLeft: 0, marginRight: 0, paddingLeft: 0, paddingRight: 0 }}>
+          <div className="table-min-width kpo-table kpo-table-shell">
+            <div className="kpo-table-head" style={{ gridTemplateColumns: kpoGridCols }}>
+              <p>Red. br.</p>
+              <p>Datum naplate</p>
+              <p>Naziv i adresa kupca</p>
+              <p>Broj računa</p>
+              <p style={{ textAlign: 'right' }}>Iznos orig.</p>
+              <p style={{ textAlign: 'right' }}>Iznos RSD</p>
+              <p style={{ textAlign: 'right' }}>Akcije</p>
             </div>
 
-            {/* Redovi */}
-            {filtriranesBrojevima.map((p) => {
+            {filtriranesBrojevima.map((p, rowIdx) => {
               const over70 = isOver70(p.klijent)
+              const stripe = !over70 && rowIdx % 2 === 1
               return (
                 <div
                   key={p.id}
-                  className="kpo-table-row"
+                  className={`kpo-table-row${stripe ? ' kpo-table-row--stripe' : ''}${over70 ? ' kpo-table-row--over70' : ''}`}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '44px 82px 1fr 90px 100px',
+                    gridTemplateColumns: kpoGridCols,
                     gap: 8,
                     padding: '14px 16px',
                     borderBottom: '1px solid var(--border)',
                     alignItems: 'center',
-                    background: over70 ? 'rgba(249, 115, 22, 0.15)' : undefined,
+                    background: over70 ? 'rgba(249, 115, 22, 0.12)' : undefined,
                     borderLeft: over70 ? '3px solid #f97316' : undefined,
                   }}
                 >
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{p.redniBroj}.</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontWeight: 600 }}>{p.redniBroj}.</p>
                   <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{formatDatum(p.datum)}</p>
-                  <p style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={formatOpis(p)}>{formatOpis(p)}</p>
-                  <p style={{ color: 'var(--text-primary)', fontSize: 12, margin: 0, textAlign: 'right' }}>{iznosOriginal(p)}</p>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                    <span style={{ color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>{formatIznos(p.iznos_rsd ?? 0)} RSD</span>
-                    <span title={nbsTooltipText(p)} style={{ cursor: 'help', color: 'var(--text-muted)', display: 'inline-flex', fontSize: 14 }} aria-label="Kurs NBS">ℹ️</span>
+                  <p style={{ color: 'var(--text-primary)', fontSize: 12, fontWeight: 500, margin: 0, lineHeight: 1.35, whiteSpace: 'normal', wordBreak: 'break-word' }} title={p.klijent}>
+                    {p.klijent}
+                  </p>
+                  <p className="kpo-fakt-badge" title={brojRacunaZaPrikaz(p.napomena, p.redniBroj, selectedGodina)}>
+                    {brojRacunaZaPrikaz(p.napomena, p.redniBroj, selectedGodina)}
+                  </p>
+                  <p style={{ color: 'var(--text-primary)', fontSize: 12, margin: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{iznosOriginal(p)}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                    <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 13, fontVariantNumeric: 'tabular-nums' }}>{formatIznos(p.iznos_rsd ?? 0)} RSD</span>
+                    <span title={nbsTooltipText(p)} style={{ cursor: 'help', color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center' }} aria-label="Kurs NBS">
+                      <Info size={16} strokeWidth={2.25} />
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+                    <button
+                      type="button"
+                      className="kpo-action-btn kpo-action-btn--edit"
+                      onClick={() => otvoriIzmenuPrihoda(p)}
+                      aria-label="Izmeni prihod"
+                    >
+                      <Pencil size={17} strokeWidth={2.25} />
+                    </button>
+                    <button
+                      type="button"
+                      className="kpo-action-btn kpo-action-btn--delete"
+                      onClick={() => setBrisanjeId(p.id)}
+                      aria-label="Obriši prihod"
+                    >
+                      <Trash2 size={17} strokeWidth={2.25} />
+                    </button>
                   </div>
                 </div>
               )
             })}
 
-            {/* Footer — ukupno za filter */}
-            <div className="kpo-table-footer" style={{ display: 'grid', gridTemplateColumns: '44px 82px 1fr 90px 100px', gap: 8, padding: '14px 16px', background: 'var(--bg-primary)', alignItems: 'center' }}>
+            <div className="kpo-table-footer" style={{ display: 'grid', gridTemplateColumns: kpoGridCols, gap: 8, padding: '16px 16px', alignItems: 'center' }}>
               <div />
               <div />
-              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontWeight: 700 }}>UKUPNO {filter !== 'sve' ? filter : ''}</p>
               <div />
-              <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 14, margin: 0, textAlign: 'right' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0, fontWeight: 800, letterSpacing: '0.04em' }}>UKUPNO {filter !== 'sve' ? filter : ''}</p>
+              <div />
+              <p style={{ color: '#f59e0b', fontWeight: 800, fontSize: 15, margin: 0, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                 {filter !== 'sve' && <span style={{ fontWeight: 600, color: 'var(--text-muted)', marginRight: 8 }}>{filtrirane.length} {filtrirane.length === 1 ? 'faktura' : filtrirane.length >= 2 && filtrirane.length <= 4 ? 'fakture' : 'faktura'}</span>}
                 {formatIznos(ukupnoFilter)} RSD
               </p>
+              <div />
             </div>
             {filtrirane.some(p => isOver70(p.klijent)) && (
-              <div style={{ margin: 16, padding: '12px 16px', background: 'rgba(234, 179, 8, 0.15)', border: '1px solid rgba(234, 179, 8, 0.4)', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                <span style={{ fontSize: 18, lineHeight: 1 }} aria-hidden>⚠️</span>
-                <p style={{ fontSize: 12, color: 'var(--text-primary)', margin: 0, flex: 1 }}>
+              <div className="kpo-warning-banner">
+                <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden>⚠️</span>
+                <p>
                   Narandžasta oznaka: klijent čini više od 70% prihoda u prikazu (test samostalnosti).
                 </p>
               </div>

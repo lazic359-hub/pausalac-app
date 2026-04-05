@@ -1,10 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 type Stavka = { opis: string; iznos: string }
 type Props = {
   brojFakture: string
   datum: string
+  /** Datum valute / rok plaćanja (PDF kolona „Datum valute“). */
+  datumValute?: string
   izdavalac: { nazivFirme: string; pib: string; maticniBroj: string; brojRacuna: string }
   klijent: { naziv: string; pib?: string; adresa: string }
   stavke: Stavka[]
@@ -14,10 +16,47 @@ type Props = {
   legalNotes?: string
   style?: React.CSSProperties
   label?: string
+  /** Kompaktno dugme sa ikonom (npr. u tabeli faktura) */
+  variant?: 'default' | 'compact'
 }
 
-export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent, stavke, napomena, valuta, kurs, legalNotes, style, label }: Props) {
+function PdfIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path
+        d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+export default function PreuzmiPDFDugme({ brojFakture, datum, datumValute, izdavalac, klijent, stavke, napomena, valuta, kurs, legalNotes, style, label, variant = 'default' }: Props) {
   const [Komp, setKomp] = useState<any>(null)
+
+  const pdfDeps = useMemo(
+    () =>
+      JSON.stringify({
+        brojFakture,
+        datum,
+        datumValute,
+        stavke,
+        izdavalac,
+        klijent,
+        napomena,
+        valuta,
+        kurs,
+        legalNotes,
+        variant,
+        label,
+        style,
+      }),
+    [brojFakture, datum, datumValute, stavke, izdavalac, klijent, napomena, valuta, kurs, legalNotes, variant, label, style]
+  )
 
   useEffect(() => {
     Promise.all([
@@ -31,6 +70,7 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent
         <FakturaPDF
           brojFakture={brojFakture}
           datum={datum}
+          datumValute={datumValute}
           izdavalac={izdavalac}
           klijent={klijent}
           stavke={stavke}
@@ -41,40 +81,83 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, izdavalac, klijent
         />
       )
 
+      const compact = variant === 'compact'
       setKomp(
         <PDFDownloadLink
           document={dokument}
           fileName={`faktura-${brojFakture}.pdf`}
+          className={compact ? 'pdf-dugme-compact' : undefined}
           style={{
             background: 'transparent',
-            border: '1px solid var(--accent)',
-            borderRadius: 12,
-            padding: '14px',
+            border: compact ? '1px solid var(--border)' : '1px solid var(--accent)',
+            borderRadius: compact ? 10 : 12,
+            padding: compact ? '8px 12px' : '14px',
             color: 'var(--accent)',
-            fontSize: 14,
+            fontSize: compact ? 13 : 14,
             fontWeight: 700,
             textDecoration: 'none',
             textAlign: 'center',
-            display: 'block',
+            display: compact ? 'inline-flex' : 'block',
+            alignItems: compact ? 'center' : undefined,
+            justifyContent: compact ? 'center' : undefined,
+            gap: compact ? 8 : undefined,
             cursor: 'pointer',
+            transition: 'background 0.2s, border-color 0.2s, transform 0.15s, box-shadow 0.2s',
             ...style,
           }}
         >
-          {({ loading }: { loading: boolean }) => loading ? '⏳ Priprema PDF...' : (label || '📄 Preuzmi PDF')}
+          {({ loading }: { loading: boolean }) =>
+            loading ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <span className="pdf-dugme-spinner" aria-hidden>⏳</span> Priprema…
+              </span>
+            ) : compact ? (
+              <>
+                <PdfIcon />
+                <span>{label ?? 'PDF'}</span>
+              </>
+            ) : (
+              (label || '📄 Preuzmi PDF')
+            )}
         </PDFDownloadLink>
       )
     })
-  }, [brojFakture])
+  }, [pdfDeps])
 
-  if (!Komp) return (
-    <button disabled style={{
-      width: '100%', background: 'transparent', border: '1px solid var(--border)',
-      borderRadius: 12, padding: '14px', color: 'var(--text-muted)',
-      fontSize: 14, fontWeight: 700, cursor: 'not-allowed',
-    }}>
-      ⏳ Priprema PDF...
-    </button>
-  )
+  if (!Komp) {
+    const compact = variant === 'compact'
+    return (
+      <button
+        type="button"
+        disabled
+        className={compact ? 'pdf-dugme-compact pdf-dugme-compact--loading' : undefined}
+        style={{
+          width: compact ? 'auto' : '100%',
+          background: 'transparent',
+          border: compact ? '1px solid var(--border)' : '1px solid var(--border)',
+          borderRadius: compact ? 10 : 12,
+          padding: compact ? '8px 12px' : '14px',
+          color: 'var(--text-muted)',
+          fontSize: compact ? 13 : 14,
+          fontWeight: 700,
+          cursor: 'not-allowed',
+          display: compact ? 'inline-flex' : 'block',
+          alignItems: compact ? 'center' : undefined,
+          gap: compact ? 8 : undefined,
+          ...style,
+        }}
+      >
+        {compact ? (
+          <>
+            <PdfIcon />
+            <span>…</span>
+          </>
+        ) : (
+          '⏳ Priprema PDF...'
+        )}
+      </button>
+    )
+  }
 
   return Komp
 }

@@ -1,15 +1,31 @@
 'use client'
-import SmartInsights from "@/components/SmartInsights";
-import { getEurToRsdRate } from '@/lib/exchange-rate'
-import { useState, useEffect, useRef } from 'react'
-import { createClient, User } from '@supabase/supabase-js'
+import { Alert } from '@/components/Alert'
+import dynamic from 'next/dynamic'
+import { AnalyticsPanelSkeleton, DashboardMainSkeleton } from '@/components/DashboardSkeletons'
+import { getNbsToRsdRate } from '@/lib/exchange-rate'
+import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
+import { useState, useEffect, useRef, Suspense } from 'react'
+import type { User } from '@supabase/supabase-js'
+import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import PoresniKalendar from "@/components/PoresniKalendar";
 import { ThemeToggle } from '@/components/ThemeToggle'
+import { FloatingAddPrihod } from '@/components/FloatingAddPrihod'
+import { NavDodajFabPlus } from '@/components/NavDodajFabPlus'
+import { IncomeDetailsModal } from '@/components/IncomeDetailsModal'
+import { ConfirmModal } from '@/components/ConfirmModal'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { FileDown, Info } from 'lucide-react'
+import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu } from '@/lib/profile'
+import { formatOfflineTimestamp, loadOfflineDashboard, saveOfflineDashboard } from '@/lib/offline-data-cache'
+import { authDisplayName } from '@/lib/auth-safe-next'
+import { isUnpaidInvoiceRow } from '@/lib/faktura-status'
 
-const SUPABASE_URL = "https://ymiyqhblbqkkycpdnlaq.supabase.co"
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InltaXlxaGJsYnFra3ljcGRubGFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwNTI0NzUsImV4cCI6MjA4NzYyODQ3NX0.0G7_IGfqFf7HgC-mKy9ehCt--WdnUUP--iPf-tW0Mvk"
+const supabase = getSupabaseBrowser()
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const SmartInsightsLazy = dynamic(() => import('@/components/SmartInsights'), {
+  ssr: false,
+  loading: () => <AnalyticsPanelSkeleton />,
+})
 
 type Valuta = 'RSD' | 'EUR' | 'USD'
 
@@ -36,169 +52,11 @@ type FakturaInvoice = {
   napomena: string | null
   broj_fakture: string | null
   status?: string | null
+  payload?: unknown
 }
 
 const KURSEVI = { RSD: 1, EUR: 117, USD: 108 }
-const LIMIT = 6000000
 const LIMIT_365 = 8000000
-
-// ─────────────────────────────────────────────
-// LOGIN
-// ─────────────────────────────────────────────
-function LoginPage() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isRegister, setIsRegister] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [info, setInfo] = useState('')
-  const [ekran, setEkran] = useState<'login' | 'zaboravio' | 'novaLozinka'>('login')
-  const [resetEmail, setResetEmail] = useState('')
-  const [novaLozinka, setNovaLozinka] = useState('')
-  const [potvrda, setPotvrda] = useState('')
-  const [showPass, setShowPass] = useState(false)
-  const [showNova, setShowNova] = useState(false)
-  const [showPotvrda, setShowPotvrda] = useState(false)
-
-  const handleSubmit = async () => {
-    if (!email || !password) return
-    setLoading(true); setError(''); setInfo('')
-    if (isRegister) {
-      const { error } = await supabase.auth.signUp({ email, password })
-      if (error) setError(error.message)
-      else setInfo('Proveri email za potvrdu registracije!')
-    } else {
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
-      if (error) setError('Pogrešan email ili lozinka')
-    }
-    setLoading(false)
-  }
-
-  const handleResetEmail = async () => {
-    if (!resetEmail) return
-    setLoading(true); setError(''); setInfo('')
-    const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-      redirectTo: window.location.origin + '?reset=true',
-    })
-    if (error) setError(error.message)
-    else setInfo('Link za reset lozinke je poslat na tvoj email!')
-    setLoading(false)
-  }
-
-  const handleNovaLozinka = async () => {
-    if (!novaLozinka || !potvrda) return
-    if (novaLozinka !== potvrda) { setError('Lozinke se ne poklapaju!'); return }
-    if (novaLozinka.length < 6) { setError('Lozinka mora imati najmanje 6 karaktera'); return }
-    setLoading(true); setError(''); setInfo('')
-    const { error } = await supabase.auth.updateUser({ password: novaLozinka })
-    if (error) setError(error.message)
-    else { setInfo('Lozinka uspešno promenjena! Možeš se prijaviti.'); setEkran('login') }
-    setLoading(false)
-  }
-
-  const inp: React.CSSProperties = { width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 12, boxSizing: 'border-box', outline: 'none' }
-  const passWrap: React.CSSProperties = { position: 'relative', marginBottom: 12 }
-  const eyeBtn: React.CSSProperties = { position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }
-
-  return (
-    <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: '100%', maxWidth: 400 }}>
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <span style={{ fontSize: 40 }}>💼</span>
-          <p style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)', margin: '8px 0 4px 0' }}>Paušalac</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Evidencija prihoda za paušalce</p>
-        </div>
-
-        {ekran === 'login' && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>{isRegister ? 'REGISTRACIJA' : 'PRIJAVA'}</p>
-            <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inp} />
-            <div style={passWrap}>
-              <input
-                type={showPass ? 'text' : 'password'}
-                placeholder="Lozinka"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                style={{ ...inp, marginBottom: 0, paddingRight: 44 }}
-              />
-              <button style={eyeBtn} onClick={() => setShowPass(!showPass)}>
-                {showPass ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                )}
-              </button>
-            </div>
-            {!isRegister && (
-              <div style={{ textAlign: 'right', marginBottom: 12 }}>
-                <button onClick={() => { setEkran('zaboravio'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: 13, cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}>
-                  Zaboravio sam lozinku
-                </button>
-              </div>
-            )}
-            {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
-            {info && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
-            <button onClick={handleSubmit} disabled={loading} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginBottom: 12, opacity: loading ? 0.7 : 1 }}>
-              {loading ? 'Učitavanje...' : isRegister ? 'Registruj se' : 'Prijavi se'}
-            </button>
-            <button onClick={() => { setIsRegister(!isRegister); setError(''); setInfo('') }} style={{ width: '100%', background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 14, padding: '12px', borderRadius: 10, cursor: 'pointer' }}>
-              {isRegister ? 'Već imaš nalog? Prijavi se' : 'Nemaš nalog? Registruj se'}
-            </button>
-          </div>
-        )}
-
-        {ekran === 'zaboravio' && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
-            <button onClick={() => { setEkran('login'); setError(''); setInfo('') }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', padding: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-              ← Nazad na prijavu
-            </button>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>RESET LOZINKE</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 20px 0' }}>Unesite vaš email i poslaćemo vam link za reset lozinke.</p>
-            <input type="email" placeholder="Vaš email" value={resetEmail} onChange={e => setResetEmail(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleResetEmail()} style={inp} />
-            {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {error}</p>}
-            {info && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0' }}>✉️ {info}</p>}
-            <button onClick={handleResetEmail} disabled={loading} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}>
-              {loading ? 'Slanje...' : 'Pošalji link za reset'}
-            </button>
-          </div>
-        )}
-
-        {ekran === 'novaLozinka' && (
-          <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24 }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>NOVA LOZINKA</p>
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 20px 0' }}>Unesite i potvrdite vašu novu lozinku.</p>
-            <div style={passWrap}>
-              <input type={showNova ? 'text' : 'password'} placeholder="Nova lozinka" value={novaLozinka} onChange={e => setNovaLozinka(e.target.value)} style={{ ...inp, marginBottom: 0, paddingRight: 44 }} />
-              <button style={eyeBtn} onClick={() => setShowNova(!showNova)}>
-                {showNova ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                )}
-              </button>
-            </div>
-            <div style={{ ...passWrap, marginTop: 12 }}>
-              <input type={showPotvrda ? 'text' : 'password'} placeholder="Potvrdi novu lozinku" value={potvrda} onChange={e => setPotvrda(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleNovaLozinka()} style={{ ...inp, marginBottom: 0, paddingRight: 44 }} />
-              <button style={eyeBtn} onClick={() => setShowPotvrda(!showPotvrda)}>
-                {showPotvrda ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                )}
-              </button>
-            </div>
-            {error && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '12px 0 12px 0' }}>⚠️ {error}</p>}
-            {info && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '12px 0 12px 0' }}>✉️ {info}</p>}
-            <button onClick={handleNovaLozinka} disabled={loading} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', marginTop: 16, opacity: loading ? 0.7 : 1 }}>
-              {loading ? 'Čuvanje...' : 'Sačuvaj novu lozinku'}
-            </button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ─────────────────────────────────────────────
 // PDF GENERATOR
@@ -262,7 +120,7 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
     <div class="card-value">${ukupnoRSD.toLocaleString()}</div>
     <div class="card-sub">RSD · ≈ ${ukupnoEUR.toLocaleString()} EUR</div>
     <div class="bar-wrap"><div class="bar-fill"></div></div>
-    <div style="font-size:10px; color:#aaa">${procenat.toFixed(1)}% od limita (6.000.000 RSD)</div>
+    <div style="font-size:10px; color:#aaa">${procenat.toFixed(1)}% od limita</div>
   </div>
   <div class="card">
     <div class="card-label">Neto prihod</div>
@@ -304,7 +162,9 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
 // ─────────────────────────────────────────────
 // GLAVNA APLIKACIJA
 // ─────────────────────────────────────────────
-export default function Home() {
+function DashboardContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [fakture, setFakture] = useState<Faktura[]>([])
@@ -319,16 +179,33 @@ export default function Home() {
   const [showKlijentDropdown, setShowKlijentDropdown] = useState(false)
   const klijentDropdownRef = useRef<HTMLDivElement>(null)
   const [poresniPodaci, setPoresniPodaci] = useState<{
-    tax_amount: number | null
-    pio_amount: number | null
-    health_amount: number | null
-    unemployment_amount: number | null
+    porez_na_prihod: number | null
+    pio_doprinos: number | null
+    zdravstveno: number | null
+    nezaposleni: number | null
   } | null>(null)
   const [modalIzFaktureOpen, setModalIzFaktureOpen] = useState(false)
   const [neplaceneFakture, setNeplaceneFakture] = useState<FakturaInvoice[]>([])
   const [izFaktureSelectedId, setIzFaktureSelectedId] = useState<string | null>(null)
   const [izFaktureDatumPlacanja, setIzFaktureDatumPlacanja] = useState(() => new Date().toISOString().split('T')[0])
   const [izFaktureLoading, setIzFaktureLoading] = useState(false)
+  const [analyticsOpen, setAnalyticsOpen] = useState(false)
+  const [poresniResenjeModalOpen, setPoresniResenjeModalOpen] = useState(false)
+  const [incomeDetailsOpen, setIncomeDetailsOpen] = useState(false)
+  const [selectedIncome, setSelectedIncome] = useState<Faktura | null>(null)
+  const [deleteIncomeId, setDeleteIncomeId] = useState<string | null>(null)
+  /** Nula redova u `prihodi` — onboarding za potpuno nove korisnike */
+  const [nemaNijednogPrihoda, setNemaNijednogPrihoda] = useState<boolean | null>(null)
+  const [limitRsd, setLimitRsd] = useState(getKpoLimitRsdFromStorage)
+  /** Poslednje učitavanje / offline keš */
+  const [dataAsOf, setDataAsOf] = useState<string | null>(null)
+
+  useEffect(() => {
+    const syncLimit = () => setLimitRsd(getKpoLimitRsdFromStorage())
+    syncLimit()
+    window.addEventListener('pausalac-profil-updated', syncLimit)
+    return () => window.removeEventListener('pausalac-profil-updated', syncLimit)
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -342,15 +219,21 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t === 'dodaj') setTab('dodaj')
+    if (!t) setTab('dashboard')
+  }, [searchParams])
+
+  useEffect(() => {
     if (user) {
-      fetchFakture()
-      fetchPoresniPodaci()
+      void fetchFakture()
     }
   }, [user, godina])
 
   // Učitaj jedinstvena imena klijenata iz prihoda za autocomplete
   useEffect(() => {
     if (!user) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return
     const fetchKlijenti = async () => {
       const { data } = await supabase
         .from('prihodi')
@@ -359,7 +242,7 @@ export default function Home() {
       const unique = [...new Set((data || []).map((r: { klijent: string }) => r.klijent).filter(Boolean))] as string[]
       setKlijentSuggestions(unique.sort((a, b) => a.localeCompare(b)))
     }
-    fetchKlijenti()
+    void fetchKlijenti()
   }, [user])
 
   useEffect(() => {
@@ -371,10 +254,7 @@ export default function Home() {
         .eq('user_id', user.id)
         .order('datum', { ascending: false })
       const sve = (data as FakturaInvoice[]) ?? []
-      const neplacene = sve.filter(f => {
-        const s = f.status == null ? '' : String(f.status).toLowerCase().trim()
-        return s !== 'placena' && s !== 'plaćena' && s !== 'paid'
-      })
+      const neplacene = sve.filter(f => isUnpaidInvoiceRow(f))
       setNeplaceneFakture(neplacene)
       setIzFaktureSelectedId(null)
       setIzFaktureDatumPlacanja(new Date().toISOString().split('T')[0])
@@ -390,7 +270,7 @@ export default function Home() {
         return
       }
       try {
-        const kurs = await getEurToRsdRate(forma.datum)
+        const kurs = await getNbsToRsdRate(forma.valuta as 'EUR' | 'USD', forma.datum)
         setKursPrikaz(`1 ${forma.valuta} = ${kurs.toFixed(2)} RSD`)
         if (forma.iznos) {
           const rsd = parseFloat(forma.iznos) * kurs
@@ -406,65 +286,116 @@ export default function Home() {
     fetchKurs()
   }, [forma.datum, forma.iznos, forma.valuta])
 
-  const fetchPoresniPodaci = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('tax_amount, pio_amount, health_amount, unemployment_amount')
-      .eq('user_id', user!.id)
-      .single()
-    if (data) setPoresniPodaci(data)
-  }
-
   const fetchFakture = async () => {
     if (!user) return
+    if (typeof window !== 'undefined' && !navigator.onLine) {
+      const snap = loadOfflineDashboard(user.id)
+      if (snap && snap.data.godina === godina) {
+        setFakture(snap.data.fakturePrihodi as Faktura[])
+        setPrihodiTekucaGodina(snap.data.prihodiTekucaGodina as Faktura[])
+        setNemaNijednogPrihoda(snap.data.nemaNijednogPrihoda)
+        if (snap.data.poresniPodaci) setPoresniPodaci(snap.data.poresniPodaci)
+        setDataAsOf(snap.updatedAt)
+      } else {
+        setFakture([])
+        setPrihodiTekucaGodina([])
+        setNemaNijednogPrihoda(null)
+        setDataAsOf(null)
+      }
+      setLoading(false)
+      return
+    }
     setLoading(true)
+    setDataAsOf(null)
     const tecucaGodina = new Date().getFullYear().toString()
-    const [resGodina, resTekuca] = await Promise.all([
-      supabase
-        .from('prihodi')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('datum', `${godina}-01-01`)
-        .lte('datum', `${godina}-12-31`)
-        .order('datum', { ascending: false }),
-      supabase
-        .from('prihodi')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('datum', `${tecucaGodina}-01-01`)
-        .lte('datum', `${tecucaGodina}-12-31`)
-        .order('datum', { ascending: false }),
-    ])
-    if (!resGodina.error && resGodina.data) setFakture(resGodina.data as Faktura[])
-    if (!resTekuca.error && resTekuca.data) setPrihodiTekucaGodina(resTekuca.data as Faktura[])
-    setLoading(false)
+    try {
+      const [resGodina, resTekuca, resCount, profRes] = await Promise.all([
+        supabase
+          .from('prihodi')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('datum', `${godina}-01-01`)
+          .lte('datum', `${godina}-12-31`)
+          .order('datum', { ascending: false }),
+        supabase
+          .from('prihodi')
+          .select('*')
+          .eq('user_id', user.id)
+          .gte('datum', `${tecucaGodina}-01-01`)
+          .lte('datum', `${tecucaGodina}-12-31`)
+          .order('datum', { ascending: false }),
+        supabase.from('prihodi').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase
+          .from('profiles')
+          .select('porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni')
+          .eq('id', user.id)
+          .maybeSingle(),
+      ])
+      const fakturePrihodi = (!resGodina.error && resGodina.data ? resGodina.data : []) as Faktura[]
+      const prihodiTek = (!resTekuca.error && resTekuca.data ? resTekuca.data : []) as Faktura[]
+      const nema = (resCount.count ?? 0) === 0
+      if (!resGodina.error && resGodina.data) setFakture(fakturePrihodi)
+      if (!resTekuca.error && resTekuca.data) setPrihodiTekucaGodina(prihodiTek)
+      setNemaNijednogPrihoda(nema)
+      let poresni: {
+        porez_na_prihod: number | null
+        pio_doprinos: number | null
+        zdravstveno: number | null
+        nezaposleni: number | null
+      } | null = null
+      if (profRes.data) {
+        poresni = {
+          porez_na_prihod: profRes.data.porez_na_prihod,
+          pio_doprinos: profRes.data.pio_doprinos,
+          zdravstveno: profRes.data.zdravstveno,
+          nezaposleni: profRes.data.nezaposleni,
+        }
+        setPoresniPodaci(poresni)
+      }
+      const now = new Date().toISOString()
+      saveOfflineDashboard(user.id, {
+        godina,
+        fakturePrihodi,
+        prihodiTekucaGodina: prihodiTek,
+        nemaNijednogPrihoda: nema,
+        poresniPodaci: poresni,
+      })
+      setDataAsOf(now)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const logout = async () => { await supabase.auth.signOut(); setFakture([]) }
 
   const ukupnoRSD = fakture.reduce((s, f) => s + (f.iznos_rsd ?? 0), 0)
-  const ukupnoEUR = Math.round(ukupnoRSD / KURSEVI.EUR)
-  const procenat = Math.min((ukupnoRSD / LIMIT) * 100, 100)
-  const porez = Math.round(ukupnoRSD * 0.1)
-  const pio = Math.round(ukupnoRSD * 0.24)
-  const zdravstvo = Math.round(ukupnoRSD * 0.103)
+  const prihodGodina = getUkupnoPrihodZaGodinu(ukupnoRSD, parseInt(godina, 10))
+  const ukupnoEUR = Math.round(prihodGodina / KURSEVI.EUR)
+  const procenat = limitRsd > 0 ? Math.min((prihodGodina / limitRsd) * 100, 100) : 0
+  const porez = Math.round(prihodGodina * 0.1)
+  const pio = Math.round(prihodGodina * 0.24)
+  const zdravstvo = Math.round(prihodGodina * 0.103)
   const ukupanPorez = porez + pio + zdravstvo
-  const t = poresniPodaci?.tax_amount ?? 0
-  const p = poresniPodaci?.pio_amount ?? 0
-  const h = poresniPodaci?.health_amount ?? 0
-  const u = poresniPodaci?.unemployment_amount ?? 0
+  const t = poresniPodaci?.porez_na_prihod ?? 0
+  const p = poresniPodaci?.pio_doprinos ?? 0
+  const h = poresniPodaci?.zdravstveno ?? 0
+  const u = poresniPodaci?.nezaposleni ?? 0
   const ukupnoMesecnoObaveze = t + p + h + u
   const godisnjeObaveze = ukupnoMesecnoObaveze * 12
   const ukupniRashodi = ukupnoMesecnoObaveze > 0 ? godisnjeObaveze : ukupanPorez
-  const neto = ukupnoRSD - ukupniRashodi
-  const bojaBar = procenat > 90 ? '#ff4d4d' : procenat >= 70 ? '#ffcc00' : 'var(--accent)'
-  const remainingLimit = Math.max(0, LIMIT - ukupnoRSD)
+  const neto = prihodGodina - ukupniRashodi
+  const bojaBar =
+    procenat > 90
+      ? 'var(--alert-danger-solid)'
+      : procenat >= 70
+        ? 'var(--alert-warning-solid)'
+        : 'var(--accent)'
+  const remainingLimit = Math.max(0, limitRsd - prihodGodina)
 
   const pre365 = new Date()
   pre365.setDate(pre365.getDate() - 365)
   const prihod365 = fakture.filter(f => new Date(f.datum) >= pre365).reduce((s, f) => s + (f.iznos_rsd ?? 0), 0)
-  const procenat365 = Math.min((ukupnoRSD / LIMIT_365) * 100, 100)
-  const bojaBar365 = procenat365 > 90 ? '#ff4d4d' : procenat365 >= 70 ? '#ffcc00' : 'var(--accent)'
+  const procenat365 = Math.min((prihod365 / LIMIT_365) * 100, 100)
   const remaining365 = Math.max(0, LIMIT_365 - prihod365)
 
   const dodajFakturu = async () => {
@@ -473,7 +404,7 @@ export default function Home() {
     let kursKoriscen = KURSEVI[forma.valuta]
     if (forma.valuta !== 'RSD' && forma.datum) {
       try {
-        const kurs = forma.valuta === 'EUR' ? await getEurToRsdRate(forma.datum) : KURSEVI.USD
+        const kurs = await getNbsToRsdRate(forma.valuta as 'EUR' | 'USD', forma.datum)
         kursKoriscen = kurs
         iznos_rsd = parseFloat(forma.iznos) * kurs
       } catch {
@@ -511,6 +442,7 @@ export default function Home() {
     const { data, error } = await supabase.from('prihodi').insert(noviPrihod).select().single()
     if (!error && data) {
       setFakture([data as Faktura, ...fakture])
+      setNemaNijednogPrihoda(false)
       setForma({ klijent: '', iznos: '', valuta: 'EUR', datum: '', napomena: '' })
       setTab('dashboard')
     } else {
@@ -519,8 +451,13 @@ export default function Home() {
   }
 
   const obrisi = async (id: string) => {
+    if (!user) return
     const { error } = await supabase.from('prihodi').delete().eq('id', id)
-    if (!error) setFakture(fakture.filter(f => f.id !== id))
+    if (!error) {
+      setFakture(fakture.filter(f => f.id !== id))
+      const { count } = await supabase.from('prihodi').select('id', { count: 'exact', head: true }).eq('user_id', user.id)
+      setNemaNijednogPrihoda((count ?? 0) === 0)
+    }
   }
 
   const oznaciKaoPlacenoIzFakture = async () => {
@@ -528,27 +465,30 @@ export default function Home() {
     const f = neplaceneFakture.find(x => x.id === izFaktureSelectedId)
     if (!f) return
     setIzFaktureLoading(true)
-    const iznosRsd = f.iznos_rsd ?? 0
-    const napomena = (f.napomena?.trim() ? f.napomena + ' ' : '') + (f.broj_fakture ? `[Faktura ${f.broj_fakture}]` : '[Plaćena faktura]')
-    await supabase.from('fakture').update({ status: 'placena' }).eq('id', f.id)
+    await supabase.from('fakture').update({ status: 'paid' }).eq('id', f.id)
     const { data: postojeca } = await supabase
       .from('prihodi')
       .select('id')
       .eq('user_id', user.id)
-      .eq('klijent', f.klijent ?? '')
-      .eq('datum', izFaktureDatumPlacanja)
-      .gte('iznos_rsd', iznosRsd - 1)
-      .lte('iznos_rsd', iznosRsd + 1)
+      .like('napomena', `%[faktura_id:${f.id}]%`)
       .limit(1)
     if (!postojeca?.length) {
+      const row = await buildPrihodRowForPaidFaktura(
+        {
+          id: f.id,
+          klijent: f.klijent,
+          iznos: f.iznos,
+          valuta: f.valuta,
+          broj_fakture: f.broj_fakture,
+          napomena: f.napomena,
+          payload: f.payload,
+        },
+        izFaktureDatumPlacanja,
+      )
       await supabase.from('prihodi').insert({
         user_id: user.id,
-        klijent: f.klijent ?? '',
-        iznos: f.iznos ?? 0,
-        valuta: (f.valuta as 'RSD' | 'EUR' | 'USD') ?? 'RSD',
-        iznos_rsd: iznosRsd,
+        ...row,
         datum: izFaktureDatumPlacanja,
-        napomena: napomena.trim() || null,
       })
     }
     setModalIzFaktureOpen(false)
@@ -575,7 +515,14 @@ export default function Home() {
     </div>
   )
 
-  if (!user) return <LoginPage />
+  if (!user) {
+    router.replace('/login?next=/dashboard')
+    return (
+      <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>Preusmeravam na prijavu…</span>
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
@@ -583,11 +530,12 @@ export default function Home() {
       {/* Modal: Iz fakture */}
       {modalIzFaktureOpen && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+          className="app-modal-overlay"
+          style={{ zIndex: 9998 }}
           onClick={() => setModalIzFaktureOpen(false)}
         >
           <div
-            style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, maxWidth: 440, width: '100%', maxHeight: '85vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+            className="app-modal-panel app-modal-panel--narrow"
             onClick={e => e.stopPropagation()}
           >
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -639,137 +587,312 @@ export default function Home() {
         </div>
       )}
 
+      <IncomeDetailsModal
+        open={incomeDetailsOpen}
+        income={selectedIncome}
+        onClose={() => setIncomeDetailsOpen(false)}
+      />
+
+      <ConfirmModal
+        open={deleteIncomeId != null}
+        message="Da li si siguran da želiš da obrišeš ovaj prihod?"
+        confirmText="Da, obriši"
+        cancelText="Ne"
+        onCancel={() => setDeleteIncomeId(null)}
+        onConfirm={() => {
+          if (!deleteIncomeId) return
+          void obrisi(deleteIncomeId)
+          setDeleteIncomeId(null)
+        }}
+      />
+
+      {poresniResenjeModalOpen && (
+        <div
+          className="app-modal-overlay"
+          style={{ zIndex: 9998 }}
+          onClick={() => setPoresniResenjeModalOpen(false)}
+        >
+          <div
+            className="app-modal-panel app-modal-panel--narrow"
+            style={{ maxWidth: 420 }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 700, fontSize: 17, color: 'var(--text-primary)' }}>Iznosi iz poreskog rešenja</span>
+              <button type="button" onClick={() => setPoresniResenjeModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 24, cursor: 'pointer', lineHeight: 1 }} aria-label="Zatvori">×</button>
+            </div>
+            <div style={{ padding: 16, overflowY: 'auto', flex: 1 }}>
+              {!poresniPodaci || (!poresniPodaci.porez_na_prihod && !poresniPodaci.pio_doprinos && !poresniPodaci.zdravstveno && !poresniPodaci.nezaposleni) ? (
+                <div style={{ textAlign: 'center', padding: '8px 0 4px' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: '0 0 14px 0' }}>
+                    Unesi obaveze iz poreskog rešenja na stranici Profil.
+                  </p>
+                  <a href="/profil" onClick={() => setPoresniResenjeModalOpen(false)} style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 13, padding: '10px 18px', borderRadius: 10, textDecoration: 'none', display: 'inline-block' }}>
+                    Profil →
+                  </a>
+                </div>
+              ) : (() => {
+                const tm = poresniPodaci.porez_na_prihod || 0
+                const pm = poresniPodaci.pio_doprinos || 0
+                const hm = poresniPodaci.zdravstveno || 0
+                const um = poresniPodaci.nezaposleni || 0
+                const ukupnoMesecno = tm + pm + hm + um
+                return (
+                  <>
+                    {[
+                      { label: 'Porez na prihod', value: tm, boja: '#f59e0b' },
+                      { label: 'PIO doprinos', value: pm, boja: '#3b82f6' },
+                      { label: 'Zdravstveno osiguranje', value: hm, boja: '#a855f7' },
+                      { label: 'Osiguranje za nezaposlene', value: um, boja: '#ec4899' },
+                    ].map(item => (
+                      <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{ width: 6, height: 6, borderRadius: '50%', background: item.boja, boxShadow: `0 0 4px ${item.boja}` }} />
+                          <span style={{ color: 'var(--text-primary)', fontSize: 13 }}>{item.label}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>mesečno</span>
+                        </div>
+                        <span style={{ color: item.boja, fontWeight: 700, fontSize: 14 }}>{item.value.toLocaleString()} RSD</span>
+                      </div>
+                    ))}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 4px 0' }}>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 13 }}>Ukupno mesečno</span>
+                      <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 15 }}>{ukupnoMesecno.toLocaleString()} RSD</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 0 0 0' }}>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ukupno godišnje</span>
+                      <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: 13 }}>{(ukupnoMesecno * 12).toLocaleString()} RSD</span>
+                    </div>
+                  </>
+                )
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="app-header" style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>💼</span>
           <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušalac</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <select
             value={godina}
             onChange={e => setGodina(e.target.value)}
+            className="dashboard-year-select"
             style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, padding: '4px 12px', color: 'var(--accent)', fontSize: 13, fontWeight: 700, outline: 'none', cursor: 'pointer' }}
           >
             {godinaOptions.map(g => <option key={g} value={g}>{g}.</option>)}
           </select>
-          <ThemeToggle />
-          <button onClick={logout} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', cursor: 'pointer' }}>
+          <span
+            className="app-header-mobile-hide"
+            title={user.email ?? authDisplayName(user)}
+            style={{
+              fontSize: 13,
+              color: 'var(--text-muted)',
+              maxWidth: 200,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {authDisplayName(user)}
+          </span>
+          <span className="app-header-mobile-hide">
+            <ThemeToggle />
+          </span>
+          <button type="button" className="app-header-mobile-hide" onClick={() => void logout()} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '4px 10px', borderRadius: 20, border: '1px solid var(--border)', cursor: 'pointer' }}>
             Odjavi se
           </button>
         </div>
       </div>
 
-      <div className="page-content" style={{ maxWidth: 680, margin: '0 auto', padding: '20px 16px 100px 16px' }}>
-
-        {loading && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Učitavanje...</div>
+      <div className="page-content dashboard-main-column" style={{ padding: '12px 12px 100px' }}>
+        {dataAsOf && (
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 10px 0', fontWeight: 600 }}>
+            Poslednje ažuriranje: {formatOfflineTimestamp(dataAsOf)}
+          </p>
         )}
 
-        {!loading && tab === 'dashboard' && (
+        {loading && tab === 'dashboard' && <DashboardMainSkeleton />}
+        {loading && tab !== 'dashboard' && (
+          <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-muted)', fontSize: 14 }}>Učitavanje...</div>
+        )}
+
+        {!loading && tab === 'dashboard' && nemaNijednogPrihoda === true && (
+          <section
+            style={{
+              marginTop: 8,
+              marginBottom: 24,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border)',
+              borderRadius: 16,
+              padding: '40px 24px',
+              textAlign: 'center',
+            }}
+          >
+            <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 16 }} aria-hidden>💼</div>
+            <p style={{ color: 'var(--text-primary)', fontSize: 17, fontWeight: 600, margin: '0 0 24px 0', lineHeight: 1.45 }}>
+              Počni tako što ćeš dodati svoj prvi prihod.
+            </p>
+            <button
+              type="button"
+              onClick={() => setTab('dodaj')}
+              style={{
+                background: 'var(--accent)',
+                color: '#000',
+                fontWeight: 700,
+                fontSize: 16,
+                padding: '14px 28px',
+                borderRadius: 12,
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 0 24px rgba(0, 255, 179, 0.25)',
+                fontFamily: 'inherit',
+              }}
+            >
+              Dodaj prihod
+            </button>
+          </section>
+        )}
+
+        {!loading && tab === 'dashboard' && nemaNijednogPrihoda === false && (
           <>
-            {/* Ukupni prihod kartica */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginBottom: 16, position: 'relative', overflow: 'hidden' }}>
-              <div style={{ position: 'absolute', top: -40, right: -40, width: 150, height: 150, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(80px)', opacity: 0.08 }} />
+            {/* 1. Sažetak — prihod i limit */}
+            <section style={{ marginBottom: 14 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', margin: '0 0 8px 0' }}>SAŽETAK</p>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ position: 'absolute', top: -36, right: -36, width: 120, height: 120, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(72px)', opacity: 0.07 }} />
+                <button
+                  type="button"
+                  onClick={() => window.location.href = '/fakture'}
+                  style={{ position: 'absolute', top: 12, right: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 16, padding: '4px 10px', fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                >
+                  {fakture.length === 1 ? '1 faktura' : fakture.length >= 2 && fakture.length <= 4 ? `${fakture.length} fakture` : `${fakture.length} faktura`}
+                </button>
+                <div>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 2 }}>Ukupni prihod · {godina}.</p>
+                  <p style={{ fontSize: 34, fontWeight: 800, color: 'var(--accent)', margin: '0 0 2px 0', textShadow: '0 0 24px #00C89630', lineHeight: 1.15 }}>
+                    {prihodGodina.toLocaleString()} <span style={{ fontSize: 15, color: 'var(--text-muted)', fontWeight: 700 }}>RSD</span>
+                  </p>
+                  {prihodGodina !== ukupnoRSD && (
+                    <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>
+                      U aplikaciji: {ukupnoRSD.toLocaleString()} RSD · uključen početni prihod za godinu
+                    </p>
+                  )}
+                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 12px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ukupno mesečno (iz poreskog rešenja)</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: 15 }}>{ukupnoMesecnoObaveze.toLocaleString()} RSD</span>
+                    <button
+                      type="button"
+                      onClick={() => setPoresniResenjeModalOpen(true)}
+                      aria-label="Detalji iznosa iz poreskog rešenja"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: 32,
+                        height: 32,
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-primary)',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <span style={{ fontSize: 16, lineHeight: 1 }} aria-hidden>ℹ</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '0 0 4px 0' }}>
+                  <p style={{ color: 'var(--text-muted)', fontSize: 10, margin: 0 }}>Limit kalendarske godine ({limitRsd.toLocaleString('sr-RS')} RSD)</p>
+                  <span
+                    title={`Limit 365 dana (8.000.000 RSD): prihod u poslednjih 365 dana ${prihod365.toLocaleString()} RSD (${procenat365.toFixed(1)}%), preostalo ${remaining365.toLocaleString()} RSD`}
+                    aria-label={`Limit 365 dana: prihod ${prihod365.toLocaleString()} RSD, ${procenat365.toFixed(1)} procenata, preostalo ${remaining365.toLocaleString()} RSD`}
+                    style={{ display: 'inline-flex', alignItems: 'center', color: 'var(--text-muted)', cursor: 'help', flexShrink: 0 }}
+                  >
+                    <Info size={14} strokeWidth={2} aria-hidden />
+                  </span>
+                </div>
+                <div style={{ background: 'var(--bg-primary)', borderRadius: 6, height: 6, marginBottom: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${procenat}%`, background: bojaBar, borderRadius: 6, boxShadow: `0 0 8px ${bojaBar}`, transition: 'width 0.5s ease' }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4, fontSize: 10, color: 'var(--text-muted)', marginBottom: 0 }}>
+                  <span style={{ color: bojaBar }}>{procenat.toFixed(1)}% limita</span>
+                  <span>Još {remainingLimit.toLocaleString()} RSD</span>
+                  <span>{limitRsd.toLocaleString('sr-RS')}</span>
+                </div>
+
+                {procenat > 80 && (
+                  <Alert
+                    variant={procenat >= 100 ? 'danger' : 'warning'}
+                    style={{ marginTop: 10, fontSize: 12, padding: '8px 10px' }}
+                  >
+                    {procenat >= 100
+                      ? `Prekoračili ste godišnji limit (${procenat.toFixed(0)}%). Proveri obaveze sa računovođom.`
+                      : `Prešli ste ${procenat.toFixed(0)}% godišnjeg limita — prati prihod.`}
+                  </Alert>
+                )}
+                {procenat365 > 80 && (
+                  <Alert
+                    variant={procenat365 >= 100 ? 'danger' : 'warning'}
+                    style={{ marginTop: procenat > 80 ? 6 : 10, fontSize: 12, padding: '8px 10px' }}
+                  >
+                    {procenat365 >= 100
+                      ? `Prekoračili ste limit za 365 dana (${procenat365.toFixed(0)}%).`
+                      : `Prešli ste ${procenat365.toFixed(0)}% limita za 365 dana — prati rolling prihod.`}
+                  </Alert>
+                )}
+              </div>
+            </section>
+
+            {/* 2. Predstojeće obaveze — kalendar */}
+            <section style={{ marginBottom: 14 }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', margin: '0 0 8px 0' }}>PREDSTOJEĆE OBAVEZE</p>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '12px 14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
+                  <span style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 700 }}>Rokovi i napomene</span>
+                  <span style={{ background: 'var(--accent-dim)', border: '1px solid rgba(0,255,179,0.2)', color: 'var(--accent)', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>{new Date().getFullYear()}</span>
+                </div>
+                <PoresniKalendar ukupnoRsd={prihodGodina} limit={limitRsd} embedded userId={user?.id} />
+              </div>
+            </section>
+
+            {/* 3. Analitika — skupljivo */}
+            <section>
               <button
                 type="button"
-                onClick={() => window.location.href = '/fakture'}
-                style={{ position: 'absolute', top: 16, right: 16, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 20, padding: '6px 12px', fontSize: 12, color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+                aria-expanded={analyticsOpen}
+                onClick={() => setAnalyticsOpen(o => !o)}
+                style={{
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  padding: '10px 14px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  marginBottom: analyticsOpen ? 8 : 0,
+                }}
               >
-                {fakture.length === 1 ? '1 faktura' : fakture.length >= 2 && fakture.length <= 4 ? `${fakture.length} fakture` : `${fakture.length} faktura`}
+                <span style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em' }}>ANALITIKA</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 14, lineHeight: 1 }} aria-hidden>{analyticsOpen ? '▼' : '▶'}</span>
               </button>
-              <div>
-                <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 4 }}>UKUPNI PRIHOD · {godina}.</p>
-                <p style={{ fontSize: 36, fontWeight: 800, color: 'var(--accent)', margin: '0 0 4px 0', textShadow: '0 0 30px #00ffb340' }}>
-                  {ukupnoRSD.toLocaleString()} <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>RSD</span>
-                </p>
-                <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 20px 0' }}>≈ {ukupnoEUR.toLocaleString()} EUR</p>
-              </div>
-
-              {/* 6M bar */}
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>LIMIT KALENDARSKE GODINE (6.000.000 RSD)</p>
-              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${procenat}%`, background: bojaBar, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar}`, transition: 'width 0.5s ease' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>
-                <span style={{ color: bojaBar }}>{ukupnoRSD.toLocaleString()} RSD ({procenat.toFixed(1)}%)</span>
-                <span>Još {remainingLimit.toLocaleString()} RSD do limita</span>
-                <span>6.000.000 RSD</span>
-              </div>
-
-              {/* 8M / 365 dana bar */}
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>LIMIT 365 DANA (8.000.000 RSD)</p>
-              <div style={{ background: 'var(--bg-primary)', borderRadius: 8, height: 8, marginBottom: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${procenat365}%`, background: bojaBar365, borderRadius: 8, boxShadow: `0 0 10px ${bojaBar365}`, transition: 'width 0.5s ease' }} />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6, fontSize: 11, color: 'var(--text-muted)' }}>
-                <span style={{ color: bojaBar365 }}>{prihod365.toLocaleString()} RSD ({procenat365.toFixed(1)}%)</span>
-                <span>Još {remaining365.toLocaleString()} RSD do limita</span>
-                <span>8.000.000 RSD</span>
-              </div>
-
-              {procenat > 80 && (
-                <div style={{ background: '#2a0a0a', border: '1px solid #ff4d4d40', borderRadius: 8, padding: '10px 14px', marginTop: 12 }}>
-                  <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>⚠️ Prešli ste {procenat.toFixed(0)}% godišnjeg limita!</p>
-                </div>
+              {analyticsOpen && (
+                <SmartInsightsLazy prihodi={fakture} prihodiTekucaGodina={prihodiTekucaGodina} godina={godina} hideOuterTitle limitRsd={limitRsd} />
               )}
-              {procenat365 > 80 && (
-                <div style={{ background: '#2a0a0a', border: '1px solid #ff4d4d40', borderRadius: 8, padding: '10px 14px', marginTop: 8 }}>
-                  <p style={{ color: '#ff6b6b', fontSize: 13, margin: 0 }}>⚠️ Prešli ste {procenat365.toFixed(0)}% limita za 365 dana!</p>
-                </div>
-              )}
-            </div>
-
-            {/* Obaveze iz poreskog rešenja */}
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>OBAVEZE IZ PORESKOG REŠENJA</p>
-              {!poresniPodaci || (!poresniPodaci.tax_amount && !poresniPodaci.pio_amount && !poresniPodaci.health_amount && !poresniPodaci.unemployment_amount) ? (
-                <div style={{ textAlign: 'center', padding: '16px 0' }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 14, margin: '0 0 12px 0' }}>
-                    📋 Unesi svoje obaveze iz poreskog rešenja u Podešavanjima profila
-                  </p>
-                  <a href="/settings" style={{ background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 13, padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}>
-                    Otvori podešavanja →
-                  </a>
-                </div>
-              ) : (() => {
-                const t = poresniPodaci.tax_amount || 0
-                const p = poresniPodaci.pio_amount || 0
-                const h = poresniPodaci.health_amount || 0
-                const u = poresniPodaci.unemployment_amount || 0
-                const ukupnoMesecno = t + p + h + u
-                return (
-                  <>
-                    {[
-                      { label: 'Porez na prihod', value: t, boja: '#f59e0b' },
-                      { label: 'PIO doprinos', value: p, boja: '#3b82f6' },
-                      { label: 'Zdravstveno osiguranje', value: h, boja: '#a855f7' },
-                      { label: 'Osiguranje za nezaposlene', value: u, boja: '#ec4899' },
-                    ].map(item => (
-                      <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: item.boja, boxShadow: `0 0 6px ${item.boja}` }} />
-                          <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>{item.label}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>mesečno</span>
-                        </div>
-                        <span style={{ color: item.boja, fontWeight: 700, fontSize: 15 }}>{item.value.toLocaleString()} RSD</span>
-                      </div>
-                    ))}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 4px 0' }}>
-                      <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 14 }}>UKUPNO MESEČNO</span>
-                      <span style={{ color: 'var(--accent)', fontWeight: 800, fontSize: 16 }}>{ukupnoMesecno.toLocaleString()} RSD</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>UKUPNO GODIŠNJE</span>
-                      <span style={{ color: 'var(--text-muted)', fontWeight: 700, fontSize: 14 }}>{(ukupnoMesecno * 12).toLocaleString()} RSD</span>
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
-
-            <PoresniKalendar ukupnoRsd={ukupnoRSD} limit={LIMIT} />
-            <SmartInsights prihodi={fakture} prihodiTekucaGodina={prihodiTekucaGodina} godina={godina} />
+            </section>
           </>
         )}
 
@@ -860,7 +983,7 @@ export default function Home() {
             <input type="text" placeholder="Napomena (opciono)" value={forma.napomena} onChange={e => setForma({ ...forma, napomena: e.target.value })}
               style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 20, boxSizing: 'border-box', outline: 'none' }}
             />
-            <button onClick={dodajFakturu} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00ffb340' }}>
+            <button onClick={dodajFakturu} style={{ width: '100%', background: 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '14px', borderRadius: 10, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00C89640' }}>
               + Dodaj prihod
             </button>
           </div>
@@ -902,14 +1025,37 @@ export default function Home() {
                 <span>+ Bez fakture</span>
               </button>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0 }}>PRIHODI {godina}. ({fakture.length})</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, letterSpacing: '0.06em', fontWeight: 800 }}>
+                  PRIHODI {godina}. ({fakture.length})
+                </p>
+                <p style={{ color: 'var(--text-primary)', fontSize: 18, fontWeight: 800, margin: '6px 0 0 0' }}>
+                  Prihodi
+                </p>
+              </div>
               {fakture.length > 0 && (
                 <button
-                  onClick={() => generatePDF(fakture, godina, user.email || '', { ukupnoRSD, porez, pio, zdravstvo, neto, procenat })}
-                  style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 8, padding: '6px 12px', color: 'var(--accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  type="button"
+                  onClick={() => generatePDF(fakture, godina, user.email || '', { ukupnoRSD: prihodGodina, porez, pio, zdravstvo, neto, procenat })}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    background: 'var(--accent-dim)',
+                    border: '2px solid var(--accent)',
+                    borderRadius: 12,
+                    padding: '10px 14px',
+                    color: 'var(--accent)',
+                    fontSize: 13,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 10px var(--shadow)',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
-                  📄 Izvezi PDF
+                  <FileDown size={18} />
+                  Izvezi PDF
                 </button>
               )}
             </div>
@@ -921,7 +1067,22 @@ export default function Home() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {fakture.map(f => (
-                  <div key={f.id} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    key={f.id}
+                    className="interactive-card"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { setSelectedIncome(f); setIncomeDetailsOpen(true) }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        setSelectedIncome(f)
+                        setIncomeDetailsOpen(true)
+                      }
+                    }}
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                    aria-label={`Detalji prihoda: ${f.klijent}`}
+                  >
                     <div>
                       <p style={{ fontWeight: 700, margin: '0 0 4px 0', color: 'var(--text-primary)' }}>{f.klijent}</p>
                       <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.datum || 'Bez datuma'}</p>
@@ -932,7 +1093,13 @@ export default function Home() {
                         <p style={{ color: 'var(--accent)', fontWeight: 700, margin: '0 0 2px 0' }}>{f.iznos} {f.valuta}</p>
                         <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{f.iznos_rsd.toLocaleString()} RSD</p>
                       </div>
-                      <button onClick={() => obrisi(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteIncomeId(f.id) }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', padding: '0 4px' }}
+                        aria-label="Obriši prihod"
+                      >
+                        ×
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -951,24 +1118,72 @@ export default function Home() {
         </div>
       )}
 
+      <FloatingAddPrihod />
+
       {/* Bottom nav — fiksirana na dnu na svim uređajima */}
-      <div className="bottom-nav-fixed" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-around', padding: '12px 0 20px 0' }}>
+      <div className="bottom-nav-fixed" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border)' }}>
         {[
           { key: 'dashboard', icon: '📊', label: 'Pregled' },
           { key: 'fakture', icon: '📋', label: 'Prihodi' },
-          { key: 'dodaj', icon: '＋', label: 'Dodaj' },
+          { key: 'dodaj', label: 'Dodaj' },
           { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/fakture' },
           { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
-          { key: 'settings', icon: '⚙️', label: 'Profil', href: '/settings' },
-        ].map(item => (
-          <button key={item.key} onClick={() => (item as any).href ? window.location.href = (item as any).href : setTab(item.key as any)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: tab === item.key ? 'var(--accent)' : 'var(--text-muted)', fontSize: 12, fontWeight: tab === item.key ? 700 : 400 }}>
-            <span className="nav-item-icon" style={{ fontSize: 22 }}>{item.icon}</span>
-            <span className="nav-item-label">{item.label}</span>
-          </button>
-        ))}
+          { key: 'settings', icon: '⚙️', label: 'Profil', href: '/profil' },
+        ].map((item) => {
+          const href = (item as { href?: string }).href
+          if (item.key === 'dodaj') {
+            const isDodaj = tab === 'dodaj'
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setTab('dodaj')}
+                className={`bottom-nav-dodaj${isDodaj ? ' bottom-nav-dodaj--active' : ''}`}
+                aria-current={isDodaj ? 'page' : undefined}
+              >
+                <span className="bottom-nav-dodaj-lift" aria-hidden>
+                  <span className="bottom-nav-dodaj-fab">
+                    <NavDodajFabPlus />
+                  </span>
+                </span>
+                <span className="bottom-nav-dodaj-label">{item.label}</span>
+              </button>
+            )
+          }
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => (href ? (window.location.href = href) : setTab(item.key as 'dashboard' | 'fakture'))}
+              className="bottom-nav-item"
+              style={{
+                color: tab === item.key ? 'var(--accent)' : 'var(--text-muted)',
+                fontWeight: tab === item.key ? 700 : 400,
+              }}
+            >
+              <span className="bottom-nav-item-icon nav-item-icon" aria-hidden>
+                {item.icon}
+              </span>
+              <span className="bottom-nav-item-label nav-item-label">{item.label}</span>
+            </button>
+          )
+        })}
       </div>
       <div className="page-content-spacer" />
     </div>
+  )
+}
+
+const dashboardSuspenseFallback = (
+  <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    Učitavanje...
+  </div>
+)
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={dashboardSuspenseFallback}>
+      <DashboardContent />
+    </Suspense>
   )
 }

@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Alert } from "@/components/Alert";
+import { getSupabaseBrowser } from "@/lib/supabase-browser";
+import { useState, useEffect, useRef } from "react";
 import {
   Calendar, CheckCircle, AlertTriangle, Clock, FileText, ChevronRight,
 } from "lucide-react";
@@ -16,6 +18,8 @@ interface Rok {
 
 type Status = "hitno" | "na_cekanju" | "placeno";
 interface PlacanjaState { [key: string]: boolean; }
+
+const STORAGE_KEY = "pausalac_poresni_kalendar_placanja_v1";
 
 function getDaysLeft(datum: Date): number {
   const danas = new Date(); danas.setHours(0,0,0,0);
@@ -41,15 +45,15 @@ function generateRokovi(year: number): Rok[] {
   }
   const ekoTaksa = new Date(year, 3, 30);
   if (ekoTaksa >= danas) godisnji.push({ id:`eko-taksa-${year}`, naziv:"Eko-taksa", opis:"Rok za uplatu naknade za zaštitu životne sredine", datum:ekoTaksa, tip:"godisnji" });
-  const ppOpo = getTaxDeadlineForMonth(year, 2);
-  if (ppOpo >= danas) godisnji.push({ id:`pp-opo-${year}`, naziv:"Poreska prijava (PP OPO)", opis:"Podnošenje prijave za promene u toku prethodne godine", datum:ppOpo, tip:"godisnji" });
+  const godisnjaPpOpo = new Date(year, 4, 15);
+  if (godisnjaPpOpo >= danas) godisnji.push({ id:`godisnja-pp-opo-${year}`, naziv:"Godišnja poreska prijava (PP OPO)", opis:"Podnošenje godišnje poreske prijave za prihode ostvarene u prethodnoj godini", datum:godisnjaPpOpo, tip:"godisnji" });
   return godisnji.sort((a,b) => a.datum.getTime()-b.datum.getTime()).slice(0,3);
 }
 
 function StatusBadge({ status, daysLeft }: { status: Status; daysLeft: number }) {
   const config = {
-    hitno: { bg:"rgba(255,60,60,0.15)", border:"rgba(255,60,60,0.4)", color:"#ff4444", label:daysLeft<=0?"Danas!":`Hitno · ${daysLeft}d`, icon:<AlertTriangle size={11}/> },
-    na_cekanju: { bg:"rgba(255,180,0,0.1)", border:"rgba(255,180,0,0.3)", color:"#ffb400", label:`${daysLeft} dana`, icon:<Clock size={11}/> },
+    hitno: { bg:"var(--alert-warning-bg)", border:"var(--alert-warning-border)", color:"var(--alert-warning-text)", label:daysLeft<=0?"Danas!":`Hitno · ${daysLeft}d`, icon:<AlertTriangle size={11}/> },
+    na_cekanju: { bg:"var(--alert-info-bg)", border:"var(--alert-info-border)", color:"var(--alert-info-text)", label:`${daysLeft} dana`, icon:<Clock size={11}/> },
     placeno: { bg:"rgba(0,255,179,0.1)", border:"rgba(0,255,179,0.3)", color:"var(--accent)", label:"Plaćeno", icon:<CheckCircle size={11}/> },
   }[status];
   return (
@@ -65,8 +69,8 @@ function RokCard({ rok, placeno, onOznaciPlaceno }: { rok: Rok; placeno: boolean
   const tipConfig = { mesecni:{color:"#6677ff",label:"Mesečno"}, kvartal:{color:"#ff9944",label:"Kvartalno"}, godisnji:{color:"#cc88ff",label:"Godišnje"} }[rok.tip];
   const isUrgent = status === "hitno";
   return (
-    <div style={{ background:isUrgent?"rgba(255,60,60,0.04)":"var(--bg-primary)", border:`1px solid ${isUrgent?"rgba(255,60,60,0.25)":"var(--border)"}`, borderRadius:"16px", padding:"18px 20px", display:"flex", flexDirection:"column", gap:"12px", position:"relative", overflow:"hidden" }}>
-      {isUrgent && <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px", background:"linear-gradient(90deg, transparent, #ff4444, transparent)" }} />}
+    <div style={{ background:isUrgent?"var(--alert-warning-bg)":"var(--bg-primary)", border:`1px solid ${isUrgent?"var(--alert-warning-border)":"var(--border)"}`, borderRadius:"16px", padding:"18px 20px", display:"flex", flexDirection:"column", gap:"12px", position:"relative", overflow:"hidden" }}>
+      {isUrgent && <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px", background:"linear-gradient(90deg, transparent, var(--alert-warning-solid), transparent)" }} />}
       {status==="placeno" && <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px", background:"linear-gradient(90deg, transparent, var(--accent), transparent)" }} />}
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", gap:"12px" }}>
         <div style={{ flex:1, minWidth:0 }}>
@@ -81,7 +85,7 @@ function RokCard({ rok, placeno, onOznaciPlaceno }: { rok: Rok; placeno: boolean
           <Calendar size={13} color="var(--text-muted)" />
           <span style={{ color:"var(--text-muted)", fontSize:"12px" }}>{formatDatum(rok.datum)}</span>
         </div>
-        {status!=="placeno" && rok.tip==="mesecni" && (
+        {status!=="placeno" && (
           <button onClick={onOznaciPlaceno} style={{ background:"var(--accent-dim)", border:"1px solid rgba(0,255,179,0.25)", color:"var(--accent)", fontSize:"11px", fontWeight:600, padding:"6px 12px", borderRadius:"8px", cursor:"pointer", display:"flex", alignItems:"center", gap:"5px" }}>
             <CheckCircle size={12} /> Označi kao plaćeno
           </button>
@@ -107,46 +111,120 @@ function QuickActionBtn({ icon, label, sublabel, accent, onClick }: { icon:React
   );
 }
 
-export default function PoresniKalendar({ ukupnoRsd=0, limit=6000000 }: { ukupnoRsd?:number; limit?:number }) {
+const supabase = getSupabaseBrowser();
+
+export default function PoresniKalendar({
+  ukupnoRsd = 0,
+  limit = 6000000,
+  embedded,
+  userId,
+}: {
+  ukupnoRsd?: number;
+  limit?: number;
+  embedded?: boolean;
+  userId?: string | null;
+}) {
   const currentYear = new Date().getFullYear();
   const [rokovi] = useState<Rok[]>(() => generateRokovi(currentYear));
   const [placanja, setPlacanja] = useState<PlacanjaState>({});
+  const loadedForUser = useRef<string | null>(null);
 
   useEffect(() => {
-    try { setPlacanja(JSON.parse(localStorage.getItem("pausalac_placanja")||"{}")); } catch {}
-  }, []);
+    if (!userId) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") setPlacanja(parsed as PlacanjaState);
+      } catch {
+        /* noop */
+      }
+      return;
+    }
+    let cancelled = false;
+    loadedForUser.current = null;
+    void (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("poresni_kalendar_placanja")
+        .eq("id", userId)
+        .maybeSingle();
+      if (cancelled) return;
+      const p = data?.poresni_kalendar_placanja as PlacanjaState | null;
+      if (p && typeof p === "object") {
+        setPlacanja(p);
+      } else {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw) as PlacanjaState;
+            if (parsed && typeof parsed === "object") setPlacanja(parsed);
+          }
+        } catch {
+          /* noop */
+        }
+      }
+      loadedForUser.current = userId;
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
-  const oznaciKaoPlaceno = (rokId: string) => {
-    const now = new Date();
-    const kljuc = `${now.getFullYear()}-${now.getMonth()}-${rokId}`;
-    const novo = {...placanja,[kljuc]:true};
-    setPlacanja(novo);
-    localStorage.setItem("pausalac_placanja", JSON.stringify(novo));
+  useEffect(() => {
+    if (!userId) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(placanja));
+      } catch {
+        /* noop */
+      }
+      return;
+    }
+    if (loadedForUser.current !== userId) return;
+    const t = setTimeout(() => {
+      void supabase
+        .from("profiles")
+        .upsert({ id: userId, poresni_kalendar_placanja: placanja }, { onConflict: "id" });
+    }, 500);
+    return () => clearTimeout(t);
+  }, [placanja, userId]);
+
+  const oznaciKaoPlaceno = (rok: Rok) => {
+    setPlacanja((prev) => ({ ...prev, [rok.id]: true }));
   };
-  const jeePlaceno = (rokId: string, datum: Date) => !!placanja[`${datum.getFullYear()}-${datum.getMonth()}-${rokId}`];
+  const jePlaceno = (rok: Rok) => !!placanja[rok.id];
 
   return (
     <div style={{ fontFamily: "'Inter', -apple-system, sans-serif" }}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: embedded ? 10 : 16 }}>
         <div style={{ flex: "1 1 340px", minWidth: "280px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-            <div style={{ width: "32px", height: "32px", background: "var(--accent-dim)", border: "1px solid rgba(0,255,179,0.25)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Calendar size={16} color="var(--accent)" />
+          {!embedded && (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+              <div style={{ width: "32px", height: "32px", background: "var(--accent-dim)", border: "1px solid rgba(0,255,179,0.25)", borderRadius: "10px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Calendar size={16} color="var(--accent)" />
+              </div>
+              <div>
+                <h3 style={{ color: "var(--text-primary)", fontSize: "15px", fontWeight: 700, margin: 0 }}>Sledeći rokovi</h3>
+                <p style={{ color: "var(--text-muted)", fontSize: "11px", margin: 0 }}>3 najbitnija predstojeća datuma</p>
+              </div>
+              <span style={{ marginLeft: "auto", background: "var(--accent-dim)", border: "1px solid rgba(0,255,179,0.2)", color: "var(--accent)", fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px" }}>{currentYear}</span>
             </div>
-            <div>
-              <h3 style={{ color: "var(--text-primary)", fontSize: "15px", fontWeight: 700, margin: 0 }}>Sledeći rokovi</h3>
-              <p style={{ color: "var(--text-muted)", fontSize: "11px", margin: 0 }}>3 najbitnija predstojeća datuma</p>
-            </div>
-            <span style={{ marginLeft: "auto", background: "var(--accent-dim)", border: "1px solid rgba(0,255,179,0.2)", color: "var(--accent)", fontSize: "10px", fontWeight: 700, padding: "3px 8px", borderRadius: "20px" }}>{currentYear}</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {rokovi.map(rok => <RokCard key={rok.id} rok={rok} placeno={jeePlaceno(rok.id, rok.datum)} onOznaciPlaceno={() => oznaciKaoPlaceno(rok.id)} />)}
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: embedded ? 8 : "12px" }}>
+            {rokovi.map((rok) => (
+              <RokCard
+                key={rok.id}
+                rok={rok}
+                placeno={jePlaceno(rok)}
+                onOznaciPlaceno={() => oznaciKaoPlaceno(rok)}
+              />
+            ))}
           </div>
         </div>
         {isPastDeadlineForCurrentMonth() && (
-          <div style={{ background: "rgba(255,60,60,0.08)", border: "1px solid rgba(255,60,60,0.3)", borderRadius: "14px", padding: "12px 16px", marginBottom: 12 }}>
-            <p style={{ color: "#ff4444", fontSize: 12, fontWeight: 600, margin: 0 }}>⚠️ Plaćanje kasni. Kamata je 0,0322% dnevno.</p>
-          </div>
+          <Alert variant="danger" style={{ marginBottom: 12, fontSize: 12, fontWeight: 600, borderRadius: 14, padding: "12px 16px" }}>
+            Plaćanje kasni. Kamata je 0,0322% dnevno.
+          </Alert>
         )}
         <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: "14px", padding: "14px 16px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
           <FileText size={14} color="var(--text-muted)" style={{ flexShrink: 0, marginTop: "2px" }} />

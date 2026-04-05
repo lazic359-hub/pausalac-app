@@ -3,7 +3,14 @@
 import { useRef, useState } from 'react'
 import { Download, Upload, Trash2, ShieldCheck, AlertTriangle, CheckCircle } from 'lucide-react'
 
-const STORAGE_KEYS = ['pausalac_profil', 'kpo_knjiga', 'pausalac_placanja']
+/** Legacy lokalni ključevi (pre migracije u Supabase). Glavni podaci su na nalogu u bazi. */
+const STORAGE_KEYS = [
+  'pausalac_profil',
+  'kpo_knjiga',
+  'pausalac_placanja',
+  'pausalac_onboarding_complete',
+  'pausalac_poresni_kalendar_placanja_v1',
+]
 
 type ToastType = 'success' | 'error' | 'warning'
 
@@ -129,10 +136,14 @@ export default function DataManagement() {
       {/* Dugmad */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
+        <p style={{ color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.5, margin: '0 0 4px 0' }}>
+          Prihodi, fakture i profil su vezani za tvoj nalog (Supabase). Ovo eksportuje još uvek prisutan lokalni keš ako postoji.
+        </p>
+
         <ActionBtn
           icon={<Download size={17} />}
           label="Preuzmi Rezervnu Kopiju"
-          sublabel="Čuva sve podatke kao .json fajl na tvoj računar"
+          sublabel="JSON sa legacy lokalnim ključevima (profil, KPO keš, itd.)"
           accent="var(--accent)"
           onClick={handleExport}
         />

@@ -1,0 +1,7 @@
+# Projekat: dopuni ostatak po potrebi (`supabase init` generiše pun fajl).
+# Edge Function prima cron sa Authorization: Bearer <CRON_SECRET> (verify_jwt = false).
+
+project_id = "pausalac-app"
+
+[functions.push-notifications]
+verify_jwt = false

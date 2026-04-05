@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { Alert } from "@/components/Alert";
+import { useMemo, useState, useEffect } from "react";
+import { getKpoLimitRsdFromStorage, getPocetniPrihodZaGodinu } from "@/lib/profile";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
@@ -19,9 +21,13 @@ interface SmartInsightsProps {
   prihodiTekucaGodina?: PrihodZaGrafikon[];
   /** Godina za naslov grafika (npr. "2025") */
   godina?: string;
+  /** Sakrij naslov „SMART INSIGHTS“ (npr. kada je komponenta u sekciji sa sopstvenim naslovom) */
+  hideOuterTitle?: boolean;
+  /** Godišnji limit iz profila (KPO); podrazumevano iz localStorage */
+  limitRsd?: number;
 }
 
-const LIMIT_6M = 6_000_000;
+const FALLBACK_LIMIT = 6_000_000;
 const WARNING_THRESHOLD = 5_000_000;
 const ACCENT = "var(--accent)";
 
@@ -43,14 +49,17 @@ const labelStyle: React.CSSProperties = {
 
 // ─── Burn Rate (iz Supabase tabele 'prihodi', tekuća godina) ───────────────────
 
-function BurnRatePanel({ prihodiTekucaGodina }: { prihodiTekucaGodina?: PrihodZaGrafikon[] }) {
-  const { ukupno, prosecniMesecni, dostizeMonth, prekoracio } = useMemo(() => {
+function BurnRatePanel({ prihodiTekucaGodina, limit6m }: { prihodiTekucaGodina?: PrihodZaGrafikon[]; limit6m: number }) {
+  const tekucaY = new Date().getFullYear();
+  const { ukupno, prosecniMesecni, dostizeMonth, prekoracio5M, prekoracio6M } = useMemo(() => {
     const podaci = prihodiTekucaGodina ?? [];
-    const ukupno = podaci.reduce((s, f) => s + (f.iznos_rsd ?? 0), 0);
+    const izBaze = podaci.reduce((s, f) => s + (f.iznos_rsd ?? 0), 0);
+    const pocetni = getPocetniPrihodZaGodinu(tekucaY);
+    const ukupno = izBaze + pocetni;
     const prosecniMesecni = ukupno / 12;
     let dostizeMonth = "—";
     if (prosecniMesecni > 0) {
-      const preostalo = LIMIT_6M - ukupno;
+      const preostalo = limit6m - ukupno;
       if (preostalo > 0) {
         const mesecaPreostalo = Math.ceil(preostalo / prosecniMesecni);
         const target = new Date();
@@ -60,17 +69,28 @@ function BurnRatePanel({ prihodiTekucaGodina }: { prihodiTekucaGodina?: PrihodZa
         dostizeMonth = "već prešen";
       }
     }
-    return { ukupno, prosecniMesecni, dostizeMonth, prekoracio: ukupno >= WARNING_THRESHOLD };
-  }, [prihodiTekucaGodina]);
+    return {
+      ukupno,
+      prosecniMesecni,
+      dostizeMonth,
+      prekoracio5M: ukupno >= WARNING_THRESHOLD,
+      prekoracio6M: ukupno >= limit6m,
+    };
+  }, [prihodiTekucaGodina, limit6m, tekucaY]);
 
-  const progress = Math.min((ukupno / LIMIT_6M) * 100, 100);
-  const bojaBar = progress > 90 ? "#ff4d4d" : progress >= 70 ? "#ffcc00" : ACCENT;
-  const remaining = Math.max(0, LIMIT_6M - ukupno);
+  const progress = limit6m > 0 ? Math.min((ukupno / limit6m) * 100, 100) : 0;
+  const bojaBar =
+    progress > 90
+      ? "var(--alert-danger-solid)"
+      : progress >= 70
+        ? "var(--alert-warning-solid)"
+        : ACCENT;
+  const remaining = Math.max(0, limit6m - ukupno);
 
   return (
     <div style={{
-      background: prekoracio ? "#1a0a0a" : "var(--bg-card)",
-      border: prekoracio ? "1px solid #ff4d4d40" : "1px solid var(--border)",
+      background: "var(--bg-card)",
+      border: "1px solid var(--border)",
       borderRadius: 16, padding: 20, marginBottom: 12,
     }}>
       <p style={labelStyle}>🔥 BURN-RATE ANALIZA</p>
@@ -85,7 +105,7 @@ function BurnRatePanel({ prihodiTekucaGodina }: { prihodiTekucaGodina?: PrihodZa
         </div>
         <div style={{ textAlign: "right" }}>
           <p style={{ color: "var(--text-muted)", fontSize: 11, margin: "0 0 2px 0" }}>Limit</p>
-          <p style={{ color: "var(--text-muted)", fontSize: 15, fontWeight: 700, margin: 0 }}>6.000.000</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 15, fontWeight: 700, margin: 0 }}>{formatBroj(limit6m)}</p>
         </div>
       </div>
       <div style={{ background: "var(--bg-primary)", borderRadius: 8, height: 8, marginBottom: 8, overflow: "hidden" }}>
@@ -94,19 +114,21 @@ function BurnRatePanel({ prihodiTekucaGodina }: { prihodiTekucaGodina?: PrihodZa
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6, fontSize: 11, color: "var(--text-muted)", marginBottom: 10 }}>
         <span>{progress.toFixed(1)}% od limita</span>
         <span>Još {formatBroj(remaining)} RSD do limita</span>
-        <span>6.000.000 RSD</span>
+        <span>{formatBroj(limit6m)} RSD</span>
       </div>
-      {prekoracio ? (
-        <div style={{ background: "#2a0a0a", border: "1px solid #ff4d4d40", borderRadius: 8, padding: "10px 14px" }}>
-          <p style={{ color: "#ff6b6b", fontSize: 13, margin: 0 }}>⚠️ Prešao si 5M RSD — konsultuj računovođu!</p>
-        </div>
+      {prekoracio6M ? (
+        <Alert variant="danger">
+          Prekoračili ste godišnji limit od {formatBroj(limit6m)} RSD — obavezno konsultuj računovođu.
+        </Alert>
+      ) : prekoracio5M ? (
+        <Alert variant="warning">
+          Prešao si 5.000.000 RSD — vredi konsultovati računovođu pre daljeg rasta prihoda.
+        </Alert>
       ) : prosecniMesecni > 0 ? (
-        <div style={{ background: "var(--accent-dim)", border: "1px solid var(--border)", borderRadius: 8, padding: "10px 14px" }}>
-          <p style={{ color: "#7affd4", fontSize: 13, margin: 0, fontWeight: 500 }}>
-            Ako nastaviš ovim tempom, limit ćeš dostići u{" "}
-            <span style={{ color: "#7affd4", fontWeight: 700 }}>{dostizeMonth}</span>.
-          </p>
-        </div>
+        <Alert variant="info">
+          Ako nastaviš ovim tempom, limit ćeš dostići u{" "}
+          <span style={{ fontWeight: 700 }}>{dostizeMonth}</span>.
+        </Alert>
       ) : (
         <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>Dodaj prihode u evidenciju da vidiš projekciju.</p>
       )}
@@ -126,23 +148,43 @@ function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
   const isLate = isPastDeadlineForCurrentMonth();
   const urgent = !isLate && days <= 3;
   const soon = !isLate && days <= 7;
-  const boja = isLate ? "#ff4d4d" : urgent ? "#ff4d4d" : soon ? "#ffcc00" : ACCENT;
+  const boja = isLate
+    ? "var(--alert-danger-solid)"
+    : urgent
+      ? "var(--alert-warning-solid)"
+      : soon
+        ? "var(--alert-warning-solid)"
+        : ACCENT;
+  const okvirBrojaca = isLate
+    ? "var(--alert-danger-border)"
+    : urgent || soon
+      ? "var(--alert-warning-border)"
+      : "var(--border)";
 
   return (
     <div style={{
-      background: isLate || urgent ? "#1a0a0a" : "var(--bg-card)",
-      border: isLate || urgent ? "1px solid #ff4d4d40" : soon ? "1px solid #ffcc0060" : "1px solid var(--border)",
+      background: isLate ? "var(--alert-danger-bg)" : "var(--bg-card)",
+      border: isLate
+        ? "1px solid var(--alert-danger-border)"
+        : urgent || soon
+          ? "1px solid var(--alert-warning-border)"
+          : "1px solid var(--border)",
       borderRadius: 16, padding: 20, marginBottom: 12,
     }}>
       <p style={labelStyle}>⏰ PORESKI PODSETNIK</p>
       {isLate && (
-        <div style={{ background: "rgba(255,60,60,0.1)", border: "1px solid rgba(255,60,60,0.3)", borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
-          <p style={{ color: "#ff6b6b", fontSize: 13, fontWeight: 600, margin: 0 }}>Plaćanje kasni. Kamata je 0,0322% dnevno.</p>
-        </div>
+        <Alert variant="danger" style={{ marginBottom: 14, fontWeight: 600 }}>
+          Plaćanje kasni. Kamata je 0,0322% dnevno.
+        </Alert>
+      )}
+      {!isLate && urgent && (
+        <Alert variant="warning" style={{ marginBottom: 14 }}>
+          Rok za uplatu je za {days} {days === 1 ? "dan" : "dana"} — pripremi uplatu na vreme.
+        </Alert>
       )}
       <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
-        <div style={{ flexShrink: 0, width: 60, height: 60, borderRadius: 12, background: "var(--bg-primary)", border: `1px solid ${boja}30`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <span style={{ fontSize: 26, fontWeight: 900, color: boja, lineHeight: 1, textShadow: `0 0 15px ${boja}60` }}>{isLate ? Math.abs(days) : days}</span>
+        <div style={{ flexShrink: 0, width: 60, height: 60, borderRadius: 12, background: "var(--bg-primary)", border: `1px solid ${okvirBrojaca}`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+          <span style={{ fontSize: 26, fontWeight: 900, color: boja, lineHeight: 1, textShadow: isLate ? "0 0 14px rgba(220, 90, 90, 0.35)" : urgent || soon ? "0 0 14px rgba(234, 179, 8, 0.25)" : "0 0 12px rgba(0, 255, 179, 0.2)" }}>{isLate ? Math.abs(days) : days}</span>
           <span style={{ fontSize: 9, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: 1 }}>{isLate ? "dana kasno" : "dana"}</span>
         </div>
         <div>
@@ -234,7 +276,7 @@ function MiniChart({ prihodi, godina }: { prihodi: PrihodZaGrafikon[]; godina?: 
                 <Cell
                   key={i}
                   fill={i === currentMonth ? LIGHT_GREEN : DARK_GREEN}
-                  style={i === currentMonth ? { filter: "drop-shadow(0 0 6px #00ffb360)" } : {}}
+                  style={i === currentMonth ? { filter: "drop-shadow(0 0 6px #00C89660)" } : {}}
                 />
               ))}
             </Bar>
@@ -250,14 +292,28 @@ function MiniChart({ prihodi, godina }: { prihodi: PrihodZaGrafikon[]; godina?: 
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export default function SmartInsights({ onOpenQRModal, prihodi, prihodiTekucaGodina, godina }: SmartInsightsProps) {
+export default function SmartInsights({ onOpenQRModal, prihodi, prihodiTekucaGodina, godina, hideOuterTitle, limitRsd }: SmartInsightsProps) {
+  const [limitSync, setLimitSync] = useState(() => limitRsd ?? getKpoLimitRsdFromStorage());
+  useEffect(() => {
+    if (limitRsd != null && limitRsd > 0) setLimitSync(limitRsd);
+  }, [limitRsd]);
+  useEffect(() => {
+    const sync = () => setLimitSync(limitRsd ?? getKpoLimitRsdFromStorage());
+    sync();
+    window.addEventListener("pausalac-profil-updated", sync);
+    return () => window.removeEventListener("pausalac-profil-updated", sync);
+  }, [limitRsd]);
+  const limit6m = limitSync > 0 ? limitSync : FALLBACK_LIMIT;
+
   return (
-    <div style={{ marginTop: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-        <div style={{ width: 3, height: 18, borderRadius: 2, background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }} />
-        <p style={{ color: "var(--text-muted)", fontSize: 11, margin: 0, letterSpacing: 1 }}>SMART INSIGHTS</p>
-      </div>
-      <BurnRatePanel prihodiTekucaGodina={prihodiTekucaGodina ?? []} />
+    <div style={{ marginTop: hideOuterTitle ? 0 : 16 }}>
+      {!hideOuterTitle && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+          <div style={{ width: 3, height: 18, borderRadius: 2, background: ACCENT, boxShadow: `0 0 8px ${ACCENT}` }} />
+          <p style={{ color: "var(--text-muted)", fontSize: 11, margin: 0, letterSpacing: 1 }}>SMART INSIGHTS</p>
+        </div>
+      )}
+      <BurnRatePanel prihodiTekucaGodina={prihodiTekucaGodina ?? []} limit6m={limit6m} />
       <TaxCountdown onOpenQRModal={onOpenQRModal} />
       <MiniChart prihodi={prihodi ?? []} godina={godina} />
     </div>

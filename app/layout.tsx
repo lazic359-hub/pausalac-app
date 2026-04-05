@@ -5,6 +5,7 @@ import { ThemeProvider } from './providers'
 export const metadata: Metadata = {
   title: 'Paušalac App',
   description: 'Pratite prihode i poreze kao paušalac u Srbiji',
+  applicationName: 'Paušalac',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -14,10 +15,11 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#00ffb3',
+  themeColor: '#00C896',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
