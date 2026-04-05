@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
 import { isOnboardingComplete, clearProfileMemory } from '@/lib/profile'
 import { clearPlanMemory } from '@/lib/plan'
@@ -14,6 +14,7 @@ const JAVNE_STAZE = new Set(['/', '/login', '/register', '/reset-password', '/pr
 
 export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [userId, setUserId] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
@@ -66,10 +67,11 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
       {children}
       {showWizard && userId ? (
         <OnboardingWizard
-          userId={userId}
           onDone={() => {
             setOnboardingDone(true)
             setShowWizard(false)
+            router.replace('/dashboard')
+            router.refresh()
           }}
         />
       ) : null}

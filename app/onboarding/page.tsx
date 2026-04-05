@@ -21,9 +21,9 @@ export default function OnboardingPage() {
 
   return (
     <OnboardingWizard
-      userId={userId}
       onDone={() => {
         router.replace('/dashboard')
+        router.refresh()
       }}
     />
   )

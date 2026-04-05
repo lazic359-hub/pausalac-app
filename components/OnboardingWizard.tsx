@@ -33,7 +33,7 @@ function inpStyle(focused: boolean): React.CSSProperties {
   }
 }
 
-export function OnboardingWizard({ userId, onDone }: { userId: string; onDone: () => void }) {
+export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const [step, setStep] = useState<Step>(1)
   const [focused, setFocused] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -71,9 +71,22 @@ export function OnboardingWizard({ userId, onDone }: { userId: string; onDone: (
 
   const finish = async () => {
     setErr(null)
-    if (!step1Ok || !step2Ok || !step3Ok) return
+    if (!step1Ok || !step2Ok || !step3Ok) {
+      setErr('Proveri korake 1–3 (datum, iznosi, početni prihod) i pokušaj ponovo.')
+      return
+    }
     setSaving(true)
     try {
+      const {
+        data: { user: authUser },
+        error: authErr,
+      } = await supabase.auth.getUser()
+      if (authErr || !authUser?.id) {
+        setErr('Sesija nije važeća. Osveži stranu i prijavi se ponovo.')
+        return
+      }
+      const uid = authUser.id
+
       const existing = readProfilFromStorage() ?? {}
 
       const merged = {
@@ -94,22 +107,26 @@ export function OnboardingWizard({ userId, onDone }: { userId: string; onDone: (
       const regParsed = Date.parse(datumRegistracije)
       const registration_date =
         Number.isFinite(regParsed) ? new Date(regParsed).toISOString().slice(0, 10) : null
+      const toInt = (s: string) => parseInt(String(s).replace(/\s/g, ''), 10) || 0
       const { error } = await supabase.from('profiles').upsert(
         {
-          id: userId,
+          id: uid,
           company_data: merged,
           onboarding_completed: true,
           registration_date,
-          porez_na_prihod: parseInt(mesecniPorez, 10) || 0,
-          pio_doprinos: parseInt(mesecniPio, 10) || 0,
-          zdravstveno: parseInt(mesecniZdravstvo, 10) || 0,
-          nezaposleni: parseInt(mesecniNezaposlenost, 10) || 0,
+          porez_na_prihod: toInt(mesecniPorez),
+          pio_doprinos: toInt(mesecniPio),
+          zdravstveno: toInt(mesecniZdravstvo),
+          nezaposleni: toInt(mesecniNezaposlenost),
         },
         { onConflict: 'id' }
       )
-      if (error) console.warn('Supabase profil (porezi):', error.message)
+      if (error) {
+        setErr(error.message || 'Greška pri čuvanju profila.')
+        return
+      }
 
-      setProfileMemory(userId, merged as Record<string, unknown>)
+      setProfileMemory(uid, merged as Record<string, unknown>)
       setOnboardingMemory(true)
       notifyProfilUpdated()
       onDone()
