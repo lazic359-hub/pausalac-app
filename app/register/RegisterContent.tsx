@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import { isAuthError } from '@supabase/supabase-js'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import {
   AuthShell,
@@ -15,6 +16,17 @@ import {
 import { safeNextParam } from '@/lib/auth-safe-next'
 
 const supabase = getSupabaseBrowser()
+
+function formatSupabaseAuthError(err: unknown): string {
+  if (isAuthError(err)) {
+    const bits = [err.message]
+    if (err.code) bits.push(`Kod: ${err.code}`)
+    if (err.status !== undefined) bits.push(`Status: ${err.status}`)
+    return bits.join(' · ')
+  }
+  if (err instanceof Error) return err.message
+  return String(err)
+}
 
 function oauthRedirectPath(next: string) {
   if (next.startsWith('/') && !next.startsWith('//')) return `${window.location.origin}${next}`
@@ -44,7 +56,7 @@ export default function RegisterContent() {
   }, [router, next])
 
   const handleSubmit = async () => {
-    if (!fullName.trim() || !email || !password || !confirm) return
+    if (!email || !password || !confirm) return
     if (password !== confirm) {
       setError('Lozinke se ne poklapaju.')
       return
@@ -56,18 +68,16 @@ export default function RegisterContent() {
     setLoading(true)
     setError('')
     setInfo('')
-    const { data, error: err } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: { full_name: fullName.trim(), display_name: fullName.trim() },
-      },
-    })
-    if (err) setError(err.message)
-    else if (data.session) {
-      router.replace('/dashboard')
-    } else {
-      setInfo('Proveri email za potvrdu registracije.')
+    try {
+      const { data, error: err } = await supabase.auth.signUp({ email, password })
+      if (err) setError(formatSupabaseAuthError(err))
+      else if (data.session) {
+        router.replace('/dashboard')
+      } else {
+        setInfo('Proveri email za potvrdu registracije.')
+      }
+    } catch (e) {
+      setError(formatSupabaseAuthError(e))
     }
     setLoading(false)
   }
