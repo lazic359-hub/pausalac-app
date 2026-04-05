@@ -6,7 +6,7 @@ import { PushNotificationSettings } from '@/components/PushNotificationSettings'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { BottomNav } from '@/components/BottomNav'
 import TestSamostalnosti from "@/components/TestSamostalnosti"
-import { getSupabaseBrowser } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, signOutIntentional } from '@/lib/supabase-browser'
 import { readProfilFromStorage, setProfileMemory } from '@/lib/profile'
 import {
   BookOpen, Building2, ChevronRight, LayoutDashboard, FileSpreadsheet, Wallet, FileText, LogOut, Landmark,
@@ -221,13 +221,12 @@ export default function SettingsPage() {
 
   const odjava = async () => {
     setLogoutBusy(true)
-    const { error } = await supabase.auth.signOut()
+    const { error } = await signOutIntentional()
     setLogoutBusy(false)
     if (error) {
       showToast('Odjava nije uspela. Pokušaj ponovo.', 'error')
       return
     }
-    router.replace('/login')
   }
 
   const sacuvaj = async (): Promise<Profil | null> => {

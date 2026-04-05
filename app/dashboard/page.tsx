@@ -6,7 +6,7 @@ import { getNbsToRsdRate } from '@/lib/exchange-rate'
 import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
 import { useState, useEffect, useRef, Suspense } from 'react'
 import type { User } from '@supabase/supabase-js'
-import { getSupabaseBrowser } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, signOutIntentional } from '@/lib/supabase-browser'
 import PoresniKalendar from "@/components/PoresniKalendar";
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { FloatingAddPrihod } from '@/components/FloatingAddPrihod'
@@ -366,7 +366,10 @@ function DashboardContent() {
     }
   }
 
-  const logout = async () => { await supabase.auth.signOut(); setFakture([]) }
+  const logout = async () => {
+    await signOutIntentional()
+    setFakture([])
+  }
 
   const ukupnoRSD = fakture.reduce((s, f) => s + (f.iznos_rsd ?? 0), 0)
   const prihodGodina = getUkupnoPrihodZaGodinu(ukupnoRSD, parseInt(godina, 10))

@@ -2,6 +2,7 @@
 
 import { Suspense } from 'react'
 import { ThemeProvider as NextThemesProvider } from 'next-themes'
+import { AuthSessionExpiry } from '@/components/AuthSessionExpiry'
 import { OnboardingGate } from '@/components/OnboardingGate'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { PushPermissionAfterLogin } from '@/components/PushPermissionAfterLogin'
@@ -15,6 +16,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       enableSystem={false}
     >
       <Suspense fallback={null}>
+        <AuthSessionExpiry />
         <OfflineBanner />
         <PushPermissionAfterLogin />
         <PushNotificationsSetup />

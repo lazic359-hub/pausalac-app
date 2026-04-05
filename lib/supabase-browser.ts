@@ -34,3 +34,13 @@ export function getSupabaseBrowser(): SupabaseClient {
   }
   return browserClient
 }
+
+/** SessionStorage ključ — čita ga AuthSessionExpiry da ne prikaže poruku o isteku sesije posle odjavljivanja. */
+export const PAUSALAC_INTENTIONAL_SIGN_OUT_KEY = 'pausalac:intentional-sign-out'
+
+export async function signOutIntentional() {
+  if (typeof window !== 'undefined') {
+    sessionStorage.setItem(PAUSALAC_INTENTIONAL_SIGN_OUT_KEY, '1')
+  }
+  return getSupabaseBrowser().auth.signOut()
+}

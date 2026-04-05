@@ -2,7 +2,7 @@
 
 import { BottomNav } from '@/components/BottomNav'
 import { ThemeToggle } from '@/components/ThemeToggle'
-import { getSupabaseBrowser } from '@/lib/supabase-browser'
+import { getSupabaseBrowser, signOutIntentional } from '@/lib/supabase-browser'
 import { readProfilFromStorage, setProfileMemory } from '@/lib/profile'
 import { ChevronRight, Eye, EyeOff, LogOut } from 'lucide-react'
 import Link from 'next/link'
@@ -333,13 +333,12 @@ export default function ProfilPage() {
 
   const odjava = async () => {
     setLogoutBusy(true)
-    const { error } = await supabase.auth.signOut()
+    const { error } = await signOutIntentional()
     setLogoutBusy(false)
     if (error) {
       showToast('Odjava nije uspela.', 'error')
       return
     }
-    router.replace('/login')
   }
 
   const deleteAccount = async () => {
@@ -360,9 +359,8 @@ export default function ProfilPage() {
       showToast(json.error || 'Brisanje nije uspelo.', 'error')
       return
     }
-    await supabase.auth.signOut()
+    await signOutIntentional()
     setDeleteOpen(false)
-    router.replace('/login')
   }
 
   if (authLoading || !userId || !taxLoaded) {

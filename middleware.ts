@@ -1,25 +1,15 @@
 import { createServerClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase-config'
+import { isProtectedAppPath } from '@/lib/auth-paths'
+import { getSupabaseAuthStorageKey, SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase-config'
 import { onboardingCompletedFromDb } from '@/lib/profile'
 
-/** Zaštićene stranice aplikacije (npr. /profil, /settings i ostale glavne rute). */
-const PROTECTED_PREFIXES = [
-  '/dashboard',
-  '/prihodi',
-  '/faktura',
-  '/fakture',
-  '/kpo',
-  '/settings',
-  '/profil',
-  '/rashodi',
-  '/doo',
-  '/onboarding',
-] as const
-
-function isProtectedPath(pathname: string): boolean {
-  return PROTECTED_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`))
+function hasSupabaseSessionCookies(request: NextRequest): boolean {
+  const key = getSupabaseAuthStorageKey()
+  return request.cookies.getAll().some(
+    (c) => Boolean(c.value) && (c.name === key || c.name.startsWith(`${key}.`))
+  )
 }
 
 /** Javne rute dok je korisnik ulogovan (onboarding nije završen) — ne forsira se /onboarding. */
@@ -84,10 +74,13 @@ export async function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  if (!user && isProtectedPath(pathname)) {
+  if (!user && isProtectedAppPath(pathname)) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('next', `${pathname}${request.nextUrl.search}`)
+    if (hasSupabaseSessionCookies(request)) {
+      url.searchParams.set('session_expired', '1')
+    }
     const redirect = NextResponse.redirect(url)
     copyCookies(supabaseResponse, redirect)
     return redirect

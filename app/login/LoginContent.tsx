@@ -25,6 +25,7 @@ export default function LoginContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = safeNextParam(searchParams.get('next'))
+  const sessionExpired = searchParams.get('session_expired') === '1'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -79,6 +80,19 @@ export default function LoginContent() {
 
   return (
     <AuthShell title="Prijava" subtitle="Prijavi se da nastaviš">
+      {sessionExpired ? (
+        <p
+          style={{
+            color: 'var(--text-muted)',
+            fontSize: 14,
+            margin: '0 0 16px 0',
+            lineHeight: 1.45,
+            whiteSpace: 'pre-line',
+          }}
+        >
+          Tvoja sesija je istekla.{'\n'}Prijavi se ponovo.
+        </p>
+      ) : null}
       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>EMAIL I LOZINKA</p>
       <input
         type="email"
