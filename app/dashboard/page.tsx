@@ -13,6 +13,7 @@ import { FloatingAddPrihod } from '@/components/FloatingAddPrihod'
 import { NavDodajFabPlus } from '@/components/NavDodajFabPlus'
 import { IncomeDetailsModal } from '@/components/IncomeDetailsModal'
 import { ConfirmModal } from '@/components/ConfirmModal'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FileDown, Info } from 'lucide-react'
 import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu } from '@/lib/profile'
@@ -726,37 +727,83 @@ function DashboardContent() {
         {!loading && tab === 'dashboard' && nemaNijednogPrihoda === true && (
           <section
             style={{
-              marginTop: 8,
-              marginBottom: 24,
+              marginTop: 12,
+              marginBottom: 32,
+              minHeight: 'min(520px, calc(100vh - 220px))',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              textAlign: 'center',
+              padding: '32px 20px 40px',
               background: 'var(--bg-card)',
               border: '1px solid var(--border)',
-              borderRadius: 16,
-              padding: '40px 24px',
-              textAlign: 'center',
+              borderRadius: 20,
+              position: 'relative',
+              overflow: 'hidden',
             }}
           >
-            <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 16 }} aria-hidden>💼</div>
-            <p style={{ color: 'var(--text-primary)', fontSize: 17, fontWeight: 600, margin: '0 0 24px 0', lineHeight: 1.45 }}>
-              Počni tako što ćeš dodati svoj prvi prihod.
-            </p>
-            <button
-              type="button"
-              onClick={() => setTab('dodaj')}
+            <div
+              aria-hidden
               style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -58%)',
+                width: 200,
+                height: 200,
+                borderRadius: '50%',
                 background: 'var(--accent)',
-                color: '#000',
-                fontWeight: 700,
-                fontSize: 16,
-                padding: '14px 28px',
-                borderRadius: 12,
-                border: 'none',
-                cursor: 'pointer',
-                boxShadow: '0 0 24px rgba(0, 255, 179, 0.25)',
-                fontFamily: 'inherit',
+                opacity: 0.06,
+                filter: 'blur(48px)',
+                pointerEvents: 'none',
               }}
-            >
-              Dodaj prihod
-            </button>
+            />
+            <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 360 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
+                <span style={{ fontSize: 52, lineHeight: 1 }} aria-hidden>💼</span>
+                <span style={{ fontWeight: 800, fontSize: 20, color: 'var(--accent)', marginTop: 10, letterSpacing: 0.2 }}>Paušo</span>
+              </div>
+              <h1 style={{ color: 'var(--text-primary)', fontSize: 22, fontWeight: 700, margin: '0 0 14px 0', lineHeight: 1.35 }}>
+                Dobrodošao/la u Paušo! 👋
+              </h1>
+              <p style={{ color: 'var(--text-muted)', fontSize: 15, margin: '0 0 28px 0', lineHeight: 1.55 }}>
+                Tvoj džepni knjigovođa je spreman. Dodaj prvi prihod da počneš da pratiš svoje finansije.
+              </p>
+              <button
+                type="button"
+                onClick={() => void router.push('/dashboard?tab=dodaj')}
+                style={{
+                  width: '100%',
+                  maxWidth: 320,
+                  background: 'var(--accent)',
+                  color: '#000',
+                  fontWeight: 700,
+                  fontSize: 17,
+                  padding: '16px 24px',
+                  borderRadius: 14,
+                  border: 'none',
+                  cursor: 'pointer',
+                  boxShadow: '0 0 32px rgba(0, 255, 179, 0.28)',
+                  fontFamily: 'inherit',
+                }}
+              >
+                Dodaj prvi prihod
+              </button>
+              <Link
+                href="/fakture"
+                style={{
+                  marginTop: 18,
+                  fontSize: 14,
+                  color: 'var(--text-muted)',
+                  fontWeight: 600,
+                  textDecoration: 'underline',
+                  textUnderlineOffset: 3,
+                }}
+              >
+                ili dodaj fakturu
+              </Link>
+            </div>
           </section>
         )}
 
