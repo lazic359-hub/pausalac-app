@@ -31,6 +31,14 @@ export function setOnboardingMemory(v: boolean) {
   onboardingMemory = v
 }
 
+/** Vrednost iz kolone `profiles.onboarding_completed` (REST/PostgREST). */
+export function onboardingCompletedFromDb(v: unknown): boolean {
+  if (v === true) return true
+  if (v === false || v === null || v === undefined) return false
+  if (typeof v === 'string' && v.toLowerCase() === 'true') return true
+  return false
+}
+
 /** Izvor istine: `profiles.onboarding_completed` (hydrate postavlja memoriju). */
 export function isOnboardingComplete(): boolean {
   if (typeof window === 'undefined') return true

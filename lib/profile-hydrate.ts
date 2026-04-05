@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import {
+  onboardingCompletedFromDb,
   setOnboardingMemory,
   setProfileMemory,
   STORAGE_ONBOARDING_DONE,
@@ -36,20 +37,12 @@ type ProfileRow = {
   pro_until?: string | null
 }
 
-export async function hydrateUserProfile(supabase: SupabaseClient, userId: string) {
-  if (typeof window !== 'undefined' && !navigator.onLine) {
-    const snap = loadOfflineProfile(userId)
-    if (snap) {
-      const d = snap.data
-      setProfileMemory(userId, d.company)
-      setOnboardingMemory(d.onboarding_completed)
-      setPlanMemory({ plan: d.plan ?? 'free', pro_until: d.pro_until ?? null })
-    } else {
-      setPlanMemory({ plan: 'free', pro_until: null })
-    }
-    return
-  }
-
+/**
+ * Učitava profil iz `public.profiles` (kolona `onboarding_completed`).
+ * Uvek pokušava Supabase prvo — `navigator.onLine` može biti netačan; keš/offline samo pri grešci mreže.
+ * Vraća da li je onboarding završen prema bazi (posle eventualne migracije u istom pozivu).
+ */
+export async function hydrateUserProfile(supabase: SupabaseClient, userId: string): Promise<boolean> {
   const { data: row, error } = await supabase
     .from('profiles')
     .select(
@@ -64,13 +57,32 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
       const snap = loadOfflineProfile(userId)
       if (snap) {
         const d = snap.data
+        const raw = d.onboarding_completed
+        const fromCache = onboardingCompletedFromDb(raw)
+        console.log('[hydrateUserProfile] Supabase error; offline cache profiles.onboarding_completed', {
+          userId,
+          raw,
+          interpreted: fromCache,
+        })
         setProfileMemory(userId, d.company)
-        setOnboardingMemory(d.onboarding_completed)
+        setOnboardingMemory(fromCache)
         setPlanMemory({ plan: d.plan ?? 'free', pro_until: d.pro_until ?? null })
+        return fromCache
       }
     }
-    return
+    setProfileMemory(userId, {})
+    setOnboardingMemory(false)
+    setPlanMemory({ plan: 'free', pro_until: null })
+    return false
   }
+
+  const rawFromDb = (row as ProfileRow | null)?.onboarding_completed
+  const dbCompleted = onboardingCompletedFromDb(rawFromDb)
+  console.log('[hydrateUserProfile] profiles.onboarding_completed (Supabase)', {
+    userId,
+    raw: rawFromDb,
+    interpreted: dbCompleted,
+  })
 
   const lsProfilRaw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_PROFIL) : null
   const lsOnboard = typeof window !== 'undefined' && localStorage.getItem(STORAGE_ONBOARDING_DONE) === '1'
@@ -108,7 +120,7 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
     setProfileMemory(userId, {})
     setOnboardingMemory(false)
     setPlanMemory({ plan: 'free', pro_until: null })
-    return
+    return false
   }
 
   let company: Record<string, unknown> = (r?.company_data as Record<string, unknown>) ?? {}
@@ -116,8 +128,8 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
     company = parsedLsProfil
   }
 
-  /** Migracija: legacy localStorage može podići `onboarding_completed` u Supabase pri upsertu, ne i keš pre čitanja iz baze. */
-  const onboardingMigrated = (r?.onboarding_completed === true) || lsOnboard
+  /** Migracija: legacy localStorage samo dopunjuje Supabase ako baza još nema true — ne prepisuje `onboarding_completed` sa false. */
+  const onboardingMigrated = dbCompleted || lsOnboard
 
   let poresni: Record<string, boolean> = (r?.poresni_kalendar_placanja as Record<string, boolean>) ?? {}
   if (emptyObj(poresni) && Object.keys(parsedLsPlacanja).length > 0) {
@@ -128,7 +140,7 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
     !r ||
     (!!r && emptyObj(r.company_data) && Object.keys(parsedLsProfil).length > 0)
   const onboardNeedsPush =
-    !r || (!!r && r.onboarding_completed !== true && lsOnboard)
+    !r || (!!r && !dbCompleted && lsOnboard)
   const poresniNeedsPush =
     !r ||
     (!!r && emptyObj(r.poresni_kalendar_placanja) && Object.keys(parsedLsPlacanja).length > 0)
@@ -168,27 +180,28 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
         pro_until: proUntilVal,
       })
     }
-  } else {
-    company = (r?.company_data as Record<string, unknown>) ?? {}
-    const onboarding = r?.onboarding_completed === true
-    poresni = (r?.poresni_kalendar_placanja as Record<string, boolean>) ?? {}
-    setProfileMemory(userId, company)
-    setOnboardingMemory(onboarding)
-    const planVal = r.plan ?? 'free'
-    const proUntilVal = r.pro_until ?? null
-    setPlanMemory({ plan: planVal, pro_until: proUntilVal })
-    if (typeof window !== 'undefined' && r) {
-      saveOfflineProfile(userId, {
-        company,
-        onboarding_completed: onboarding,
-        poresni_kalendar_placanja: poresni,
-        porez_na_prihod: r.porez_na_prihod,
-        pio_doprinos: r.pio_doprinos,
-        zdravstveno: r.zdravstveno,
-        nezaposleni: r.nezaposleni,
-        plan: planVal,
-        pro_until: proUntilVal,
-      })
-    }
+    return onboardingMigrated
   }
+
+  company = (r?.company_data as Record<string, unknown>) ?? {}
+  poresni = (r?.poresni_kalendar_placanja as Record<string, boolean>) ?? {}
+  setProfileMemory(userId, company)
+  setOnboardingMemory(dbCompleted)
+  const planVal = r!.plan ?? 'free'
+  const proUntilVal = r!.pro_until ?? null
+  setPlanMemory({ plan: planVal, pro_until: proUntilVal })
+  if (typeof window !== 'undefined' && r) {
+    saveOfflineProfile(userId, {
+      company,
+      onboarding_completed: dbCompleted,
+      poresni_kalendar_placanja: poresni,
+      porez_na_prihod: r.porez_na_prihod,
+      pio_doprinos: r.pio_doprinos,
+      zdravstveno: r.zdravstveno,
+      nezaposleni: r.nezaposleni,
+      plan: planVal,
+      pro_until: proUntilVal,
+    })
+  }
+  return dbCompleted
 }

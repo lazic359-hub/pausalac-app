@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
-import { isOnboardingComplete, clearProfileMemory } from '@/lib/profile'
+import { clearProfileMemory } from '@/lib/profile'
 import { clearPlanMemory } from '@/lib/plan'
 import { hydrateUserProfile } from '@/lib/profile-hydrate'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
@@ -31,9 +31,13 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
         setReady(true)
         return
       }
-      await hydrateUserProfile(supabase, uid)
+      const onboardingCompleted = await hydrateUserProfile(supabase, uid)
       if (cancelled) return
-      setOnboardingDone(isOnboardingComplete())
+      console.log('[OnboardingGate] profiles.onboarding_completed → showWizard will be', !onboardingCompleted, {
+        userId: uid,
+        onboardingCompleted,
+      })
+      setOnboardingDone(onboardingCompleted)
       setReady(true)
     }
 

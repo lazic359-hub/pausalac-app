@@ -2,6 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { NextResponse, type NextRequest } from 'next/server'
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/lib/supabase-config'
+import { onboardingCompletedFromDb } from '@/lib/profile'
 
 /** Zaštićene stranice aplikacije (npr. /profil, /settings i ostale glavne rute). */
 const PROTECTED_PREFIXES = [
@@ -43,7 +44,10 @@ async function profileNeedsOnboarding(
     console.warn('middleware profileNeedsOnboarding:', error.message)
     return false
   }
-  return data?.onboarding_completed !== true
+  const raw = data?.onboarding_completed
+  const complete = onboardingCompletedFromDb(raw)
+  console.log('[middleware] profiles.onboarding_completed', { userId, raw, complete })
+  return !complete
 }
 
 function copyCookies(from: NextResponse, to: NextResponse) {
