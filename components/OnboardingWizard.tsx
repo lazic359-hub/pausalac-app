@@ -4,10 +4,12 @@ import { useState, useMemo } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import {
   readProfilFromStorage,
+  markSessionOnboardingPersisted,
   setOnboardingMemory,
   setProfileMemory,
   DEFAULT_GODISNJI_LIMIT_RSD,
 } from '@/lib/profile'
+import { loadOfflineProfile, saveOfflineProfile } from '@/lib/offline-data-cache'
 
 const supabase = getSupabaseBrowser()
 
@@ -128,6 +130,19 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
 
       setProfileMemory(uid, merged as Record<string, unknown>)
       setOnboardingMemory(true)
+      markSessionOnboardingPersisted(uid)
+      const offlineSnap = loadOfflineProfile(uid)
+      saveOfflineProfile(uid, {
+        company: merged as Record<string, unknown>,
+        onboarding_completed: true,
+        poresni_kalendar_placanja: offlineSnap?.data.poresni_kalendar_placanja ?? {},
+        porez_na_prihod: toInt(mesecniPorez),
+        pio_doprinos: toInt(mesecniPio),
+        zdravstveno: toInt(mesecniZdravstvo),
+        nezaposleni: toInt(mesecniNezaposlenost),
+        plan: offlineSnap?.data.plan ?? 'free',
+        pro_until: offlineSnap?.data.pro_until ?? null,
+      })
       notifyProfilUpdated()
       onDone()
     } catch (e) {

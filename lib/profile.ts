@@ -2,6 +2,8 @@
 
 export const STORAGE_PROFIL = 'pausalac_profil'
 export const STORAGE_ONBOARDING_DONE = 'pausalac_onboarding_complete'
+/** Vrednost = user id; postavlja se nakon uspešnog čuvanja onboardinga u istoj browser sesiji (zaštita od stale hydrate). */
+export const SESSION_ONBOARDING_USER_KEY = 'pausalac_session_onboarding_user_id'
 
 export const DEFAULT_GODISNJI_LIMIT_RSD = 6_000_000
 
@@ -25,6 +27,31 @@ export function clearProfileMemory() {
   profileMemory = null
   profileMemoryUserId = null
   onboardingMemory = null
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.removeItem(SESSION_ONBOARDING_USER_KEY)
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+export function markSessionOnboardingPersisted(userId: string) {
+  if (typeof window === 'undefined') return
+  try {
+    sessionStorage.setItem(SESSION_ONBOARDING_USER_KEY, userId)
+  } catch {
+    /* ignore */
+  }
+}
+
+export function isSessionOnboardingPersistedForUser(userId: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return sessionStorage.getItem(SESSION_ONBOARDING_USER_KEY) === userId
+  } catch {
+    return false
+  }
 }
 
 export function setOnboardingMemory(v: boolean) {

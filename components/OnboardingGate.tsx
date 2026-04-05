@@ -1,9 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { OnboardingWizard } from '@/components/OnboardingWizard'
-import { clearProfileMemory } from '@/lib/profile'
+import {
+  clearProfileMemory,
+  isSessionOnboardingPersistedForUser,
+  setOnboardingMemory,
+} from '@/lib/profile'
 import { clearPlanMemory } from '@/lib/plan'
 import { hydrateUserProfile } from '@/lib/profile-hydrate'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
@@ -19,23 +23,32 @@ export function OnboardingGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
   const [showWizard, setShowWizard] = useState(false)
+  const syncGenerationRef = useRef(0)
 
   useEffect(() => {
     let cancelled = false
     const sync = async (uid: string | null) => {
+      const gen = ++syncGenerationRef.current
       setUserId(uid)
       if (!uid) {
         clearProfileMemory()
         clearPlanMemory()
+        if (cancelled || gen !== syncGenerationRef.current) return
         setOnboardingDone(null)
         setReady(true)
         return
       }
-      const onboardingCompleted = await hydrateUserProfile(supabase, uid)
-      if (cancelled) return
+      setOnboardingDone(null)
+      let onboardingCompleted = await hydrateUserProfile(supabase, uid)
+      if (!onboardingCompleted && isSessionOnboardingPersistedForUser(uid)) {
+        onboardingCompleted = true
+        setOnboardingMemory(true)
+      }
+      if (cancelled || gen !== syncGenerationRef.current) return
       console.log('[OnboardingGate] profiles.onboarding_completed → showWizard will be', !onboardingCompleted, {
         userId: uid,
         onboardingCompleted,
+        syncGen: gen,
       })
       setOnboardingDone(onboardingCompleted)
       setReady(true)

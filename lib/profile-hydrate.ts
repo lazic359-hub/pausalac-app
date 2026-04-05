@@ -43,13 +43,21 @@ type ProfileRow = {
  * Vraća da li je onboarding završen prema bazi (posle eventualne migracije u istom pozivu).
  */
 export async function hydrateUserProfile(supabase: SupabaseClient, userId: string): Promise<boolean> {
-  const { data: row, error } = await supabase
-    .from('profiles')
-    .select(
-      'id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until'
-    )
-    .eq('id', userId)
-    .maybeSingle()
+  const selectCols =
+    'id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until'
+
+  let row: ProfileRow | null = null
+  let error: { message: string } | null = null
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await supabase.from('profiles').select(selectCols).eq('id', userId).maybeSingle()
+    error = res.error
+    row = (res.data as ProfileRow | null) ?? null
+    if (error) break
+    if (row !== null) break
+    if (attempt < 2) {
+      await new Promise(r => setTimeout(r, 120 + attempt * 120))
+    }
+  }
 
   if (error) {
     console.warn('hydrateUserProfile:', error.message)
