@@ -1,4 +1,4 @@
--- Paušalac: RLS + kolone za korisnički profil (company_data, onboarding, poresni kalendar)
+-- Paušo: RLS + kolone za korisnički profil (company_data, onboarding, poresni kalendar)
 -- Pokreni u Supabase → SQL Editor (jednom). Napravi backup pre produkcije.
 
 -- ─── 1) Kolone na profiles ───────────────────────────────────────────────────

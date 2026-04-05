@@ -4,26 +4,26 @@ import { LandingPage } from '@/components/landing/LandingPage'
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'
 
 export const metadata: Metadata = {
-  title: 'Paušalac — Džepni knjigovođa za paušalce u Srbiji',
+  title: 'Paušo — Džepni knjigovođa za paušalce u Srbiji',
   description:
-    'Prati prihode, rokove i poreze kao paušalac u Srbiji. Automatska KPO knjiga, fakturisanje u EUR i USD, push podsetnici.',
+    'Paušo: prati prihode, rokove i poreze kao paušalac u Srbiji. Automatska KPO knjiga, fakturisanje u EUR i USD, push podsetnici.',
   metadataBase: new URL(siteUrl),
-  applicationName: 'Paušalac',
+  applicationName: 'Paušo',
   openGraph: {
     type: 'website',
     locale: 'sr_RS',
     url: '/',
-    siteName: 'Paušalac',
-    title: 'Paušalac — Džepni knjigovođa za paušalce u Srbiji',
+    siteName: 'Paušo',
+    title: 'Paušo — Džepni knjigovođa za paušalce u Srbiji',
     description:
-      'Prati prihode, rokove i poreze kao paušalac u Srbiji. Automatska KPO knjiga, fakturisanje u EUR i USD, push podsetnici.',
-    images: [{ url: '/icon-512.png', width: 512, height: 512, alt: 'Paušalac' }],
+      'Paušo: prati prihode, rokove i poreze kao paušalac u Srbiji. Automatska KPO knjiga, fakturisanje u EUR i USD, push podsetnici.',
+    images: [{ url: '/icon-512.png', width: 512, height: 512, alt: 'Paušo' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Paušalac — Džepni knjigovođa za paušalce u Srbiji',
+    title: 'Paušo — Džepni knjigovođa za paušalce u Srbiji',
     description:
-      'Prati prihode, rokove i poreze kao paušalac u Srbiji. Automatska KPO knjiga, fakturisanje u EUR i USD, push podsetnici.',
+      'Paušo: prati prihode, rokove i poreze kao paušalac u Srbiji. Automatska KPO knjiga, fakturisanje u EUR i USD, push podsetnici.',
   },
   alternates: {
     canonical: '/',
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'Paušalac',
+  name: 'Paušo',
   applicationCategory: 'FinanceApplication',
   operatingSystem: 'Web',
   offers: {
@@ -43,7 +43,7 @@ const jsonLd = {
     description: 'Pro plan — jedna cena, mesečna pretplata',
   },
   description:
-    'Džepni knjigovođa za paušalce u Srbiji. Praćenje prihoda, rokova, KPO knjige i fakturisanje.',
+    'Paušo — džepni knjigovođa za paušalce u Srbiji. Praćenje prihoda, rokova, KPO knjige i fakturisanje.',
   inLanguage: 'sr-RS',
   url: siteUrl,
 }

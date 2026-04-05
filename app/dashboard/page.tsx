@@ -106,7 +106,7 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
 <body>
 <div class="header">
   <div>
-    <div class="logo">💼 Paušalac</div>
+    <div class="logo">💼 Paušo</div>
     <div style="color:#888; margin-top:4px; font-size:12px">Izveštaj prihoda — ${godina}. godina</div>
   </div>
   <div class="meta">
@@ -147,7 +147,7 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
   </thead>
   <tbody>${redovi}</tbody>
 </table>
-<div class="footer">Paušalac · Evidencija prihoda za preduzetnike paušalce u Srbiji</div>
+<div class="footer">Paušo · Evidencija prihoda za preduzetnike paušalce u Srbiji</div>
 </body>
 </html>`
 
@@ -677,7 +677,7 @@ function DashboardContent() {
       <div className="app-header" style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 22 }}>💼</span>
-          <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušalac</span>
+          <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušo</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <select

@@ -50,7 +50,7 @@ export default function DataManagement() {
 
   const handleExport = () => {
     const backup: Record<string, unknown> = {
-      _meta: { verzija: '1.0', datum: new Date().toISOString(), aplikacija: 'Paušalac' }
+      _meta: { verzija: '1.0', datum: new Date().toISOString(), aplikacija: 'Paušo' }
     }
     STORAGE_KEYS.forEach(key => {
       const val = localStorage.getItem(key)
@@ -80,8 +80,10 @@ export default function DataManagement() {
     reader.onload = (event) => {
       try {
         const data = JSON.parse(event.target?.result as string)
-        if (typeof data !== 'object' || !data._meta || data._meta.aplikacija !== 'Paušalac') {
-          showToast('Nevažeći fajl — ovo nije Paušalac backup!', 'error')
+        const appName = data._meta?.aplikacija
+        const validApp = appName === 'Paušo' || appName === 'Paušalac'
+        if (typeof data !== 'object' || !data._meta || !validApp) {
+          showToast('Nevažeći fajl — ovo nije Paušo backup!', 'error')
           return
         }
         let uvezeno = 0

@@ -66,7 +66,7 @@ export function LandingPage() {
             <span style={{ fontSize: 22 }} aria-hidden>
               💼
             </span>
-            <span style={{ fontWeight: 800, color: ACCENT, letterSpacing: 0.2, fontSize: 18 }}>Paušalac</span>
+            <span style={{ fontWeight: 800, color: ACCENT, letterSpacing: 0.2, fontSize: 18 }}>Paušo</span>
           </Link>
           <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             <button
@@ -119,7 +119,7 @@ export function LandingPage() {
               letterSpacing: '-0.02em',
             }}
           >
-            Džepni knjigovođa za paušalce
+            Paušo — džepni knjigovođa za paušalce
           </h1>
           <p
             style={{
@@ -130,7 +130,7 @@ export function LandingPage() {
               lineHeight: 1.65,
             }}
           >
-            Prati prihode, rokove i poreze — bez računovođe i bez Excel tabela.
+            Paušo prati tvoje prihode, rokove i poreze — bez računovođe i bez Excel tabela.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 48 }}>
             <Link
@@ -488,7 +488,7 @@ export function LandingPage() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                 <span aria-hidden>💼</span>
-                <span style={{ fontWeight: 800, color: ACCENT }}>Paušalac</span>
+                <span style={{ fontWeight: 800, color: ACCENT }}>Paušo</span>
               </div>
               <p style={{ margin: 0, color: '#666', fontSize: 14 }}>Džepni knjigovođa za paušalce</p>
             </div>
@@ -505,9 +505,9 @@ export function LandingPage() {
             </nav>
           </div>
           <p style={{ margin: '0 0 12px 0', color: '#555', fontSize: 12, lineHeight: 1.55, maxWidth: 560 }}>
-            Paušalac nije licencirani finansijski savetnik. Aplikacija služi kao pomoćni alat.
+            Paušo nije licencirani finansijski savetnik. Aplikacija služi kao pomoćni alat.
           </p>
-          <p style={{ margin: 0, color: '#444', fontSize: 12 }}>© 2026 Paušalac</p>
+          <p style={{ margin: 0, color: '#444', fontSize: 12 }}>© 2026 Paušo</p>
         </div>
       </footer>
     </div>

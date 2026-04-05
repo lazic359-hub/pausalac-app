@@ -3,14 +3,15 @@ import './globals.css'
 import { ThemeProvider } from './providers'
 
 export const metadata: Metadata = {
-  title: 'Paušalac App',
-  description: 'Pratite prihode i poreze kao paušalac u Srbiji',
-  applicationName: 'Paušalac',
+  title: 'Paušo',
+  description:
+    'Paušo — pratite prihode, rokove i poreze kao paušalac u Srbiji. Džepni knjigovođa za paušalce.',
+  applicationName: 'Paušo',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Paušalac',
+    title: 'Paušo',
   },
 }
 

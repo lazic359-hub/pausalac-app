@@ -1,6 +1,6 @@
 /* eslint-disable no-undef */
 self.addEventListener('push', function (event) {
-  var data = { title: 'Paušalac', body: '', url: '/dashboard' }
+  var data = { title: 'Paušo', body: '', url: '/dashboard' }
   if (event.data) {
     try {
       var parsed = event.data.json()

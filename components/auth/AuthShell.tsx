@@ -52,7 +52,7 @@ export function AuthShell({
               margin: '8px 0 4px 0',
             }}
           >
-            Paušalac
+            Paušo
           </p>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 6px 0', color: 'var(--text-primary)' }}>
             {title}

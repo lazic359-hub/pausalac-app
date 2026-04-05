@@ -1,7 +1,7 @@
 {
-  "name": "Paušalac",
-  "short_name": "Paušalac",
-  "description": "Džepni knjigovođa za paušalce",
+  "name": "Paušo",
+  "short_name": "Paušo",
+  "description": "Paušo — džepni knjigovođa za paušalce",
   "lang": "sr",
   "dir": "ltr",
   "start_url": "/dashboard",

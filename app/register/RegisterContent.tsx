@@ -110,7 +110,7 @@ export default function RegisterContent() {
   )
 
   return (
-    <AuthShell title="Registracija" subtitle="Napravi nalog za Paušalac">
+    <AuthShell title="Registracija" subtitle="Napravi nalog za Paušo">
       {planParam === 'pro' ? (
         <p
           style={{

@@ -134,7 +134,7 @@ export function InstallAppBanner() {
             Instaliraj aplikaciju
           </div>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.45, color: 'var(--text-muted)', fontWeight: 500 }}>
-            Dodaj Paušalac na početni ekran za brži pristup
+            Dodaj Paušo na početni ekran za brži pristup
           </p>
           {iosHint ? (
             <p style={{ margin: '8px 0 0', fontSize: 12, lineHeight: 1.4, color: 'var(--text-muted)' }}>

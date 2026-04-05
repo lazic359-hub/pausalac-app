@@ -268,7 +268,7 @@ export default function FakturaPDF({ brojFakture, datum, datumValute, izdavalac,
         {inostranstvo && (
           <View style={s.disclaimerBox}>
             <Text style={s.disclaimerText}>
-              Pausalac nije obveznik PDV-a. / This invoice is VAT exempt (flat-rate taxpayer, Republic of Serbia).
+              Paušalac nije obveznik PDV-a. / This invoice is VAT exempt (flat-rate taxpayer, Republic of Serbia).
             </Text>
           </View>
         )}
@@ -289,7 +289,7 @@ export default function FakturaPDF({ brojFakture, datum, datumValute, izdavalac,
         <View style={s.footer}>
           <Text style={s.footerText}>Generisano: {formatDatum(danas)}</Text>
           <Text style={s.footerText}>{izdavalac.nazivFirme}  |  PIB: {izdavalac.pib}</Text>
-          <Text style={s.footerBrand}>Pausalac App</Text>
+          <Text style={s.footerBrand}>Paušo</Text>
         </View>
 
       </Page>
