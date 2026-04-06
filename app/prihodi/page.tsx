@@ -10,6 +10,7 @@ import { ConfirmModal } from '@/components/ConfirmModal'
 import { useRouter } from 'next/navigation'
 import { isUnpaidInvoiceRow } from '@/lib/faktura-status'
 import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
+import { PrihodiListSkeleton } from '@/components/PageSkeletons'
 
 const supabase = getSupabaseBrowser()
 
@@ -588,7 +589,7 @@ export default function PrihodiPage() {
           </div>
         </div>
         {loading ? (
-          <p style={{ color: 'var(--text-muted)' }}>Učitavanje...</p>
+          <PrihodiListSkeleton rows={4} />
         ) : prihodiFiltered.length === 0 ? (
           <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px 0' }}>Nema prihoda.</p>
         ) : (

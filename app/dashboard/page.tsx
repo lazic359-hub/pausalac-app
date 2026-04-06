@@ -2,6 +2,7 @@
 import { Alert } from '@/components/Alert'
 import dynamic from 'next/dynamic'
 import { AnalyticsPanelSkeleton, DashboardMainSkeleton } from '@/components/DashboardSkeletons'
+import { DashboardTabListSkeleton } from '@/components/PageSkeletons'
 import { getNbsToRsdRate } from '@/lib/exchange-rate'
 import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
 import { useState, useEffect, useRef, Suspense } from 'react'
@@ -720,9 +721,7 @@ function DashboardContent() {
         )}
 
         {loading && tab === 'dashboard' && <DashboardMainSkeleton />}
-        {loading && tab !== 'dashboard' && (
-          <div style={{ textAlign: 'center', padding: '28px 0', color: 'var(--text-muted)', fontSize: 14 }}>Učitavanje...</div>
-        )}
+        {loading && tab !== 'dashboard' && <DashboardTabListSkeleton rows={3} />}
 
         {!loading && tab === 'dashboard' && nemaNijednogPrihoda === true && (
           <section
@@ -808,7 +807,7 @@ function DashboardContent() {
         )}
 
         {!loading && tab === 'dashboard' && nemaNijednogPrihoda === false && (
-          <>
+          <div className="pausalac-fade-in-on-mount">
             {/* 1. Sažetak — prihod i limit */}
             <section style={{ marginBottom: 14 }}>
               <p style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700, letterSpacing: '0.07em', margin: '0 0 8px 0' }}>SAŽETAK</p>
@@ -943,7 +942,7 @@ function DashboardContent() {
                 <SmartInsightsLazy prihodi={fakture} prihodiTekucaGodina={prihodiTekucaGodina} godina={godina} hideOuterTitle limitRsd={limitRsd} />
               )}
             </section>
-          </>
+          </div>
         )}
 
         {!loading && tab === 'dodaj' && (

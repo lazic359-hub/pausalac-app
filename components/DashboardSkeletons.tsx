@@ -57,8 +57,28 @@ export function DashboardMainSkeleton() {
         </div>
       </section>
 
-      <section>
-        <div className="dashboard-skeleton-line" style={{ width: '100%', height: 44, borderRadius: 12 }} />
+      <section style={{ marginTop: 4 }}>
+        <div className="dashboard-skeleton-line" style={{ width: '100%', height: 44, borderRadius: 12, marginBottom: 10 }} />
+        <div
+          style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: '16px 18px 18px',
+          }}
+        >
+          <div className="dashboard-skeleton-line" style={{ width: '38%', height: 11, marginBottom: 6 }} />
+          <div className="dashboard-skeleton-line" style={{ width: '52%', height: 22, marginBottom: 14 }} />
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, height: 120 }}>
+            {[48, 72, 56, 88, 64, 76, 52, 68].map((h, i) => (
+              <div
+                key={i}
+                className="dashboard-skeleton-line"
+                style={{ flex: 1, height: h, minHeight: 40, borderRadius: 6, maxWidth: 40 }}
+              />
+            ))}
+          </div>
+        </div>
       </section>
     </div>
   )
@@ -82,7 +102,15 @@ export function AnalyticsPanelSkeleton() {
       <div className="dashboard-skeleton-line" style={{ width: '42%', height: 12, marginBottom: 14 }} />
       <div className="dashboard-skeleton-line" style={{ width: '55%', height: 28, marginBottom: 10 }} />
       <div className="dashboard-skeleton-line" style={{ width: '100%', height: 8, borderRadius: 8, marginBottom: 14 }} />
-      <div className="dashboard-skeleton-line" style={{ width: '100%', height: 140, borderRadius: 10 }} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8, height: 132 }}>
+        {[52, 78, 64, 92, 70, 84, 58, 72].map((h, i) => (
+          <div
+            key={i}
+            className="dashboard-skeleton-line"
+            style={{ flex: 1, height: h, minHeight: 36, borderRadius: 6, maxWidth: 44 }}
+          />
+        ))}
+      </div>
     </div>
   )
 }

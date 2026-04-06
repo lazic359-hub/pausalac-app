@@ -19,6 +19,7 @@ import {
 import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
 import { readProfilFromStorage } from '@/lib/profile'
 import { formatOfflineTimestamp, loadOfflineFaktureList, saveOfflineFaktureList } from '@/lib/offline-data-cache'
+import { FaktureListSkeleton } from '@/components/PageSkeletons'
 
 const supabase = getSupabaseBrowser()
 
@@ -308,7 +309,7 @@ export default function FakturePage() {
         )}
 
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>Učitavanje...</div>
+          <FaktureListSkeleton rows={4} />
         ) : fakture.length === 0 ? (
           <div
             style={{

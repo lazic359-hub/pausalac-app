@@ -11,9 +11,11 @@ import Link from 'next/link'
 import { FileSpreadsheet, FileDown, Pencil, Trash2, Info } from 'lucide-react'
 import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu, readProfilFromStorage } from '@/lib/profile'
 import { brojRacunaZaPrikaz } from '@/lib/kpo-prihod'
+import { KPO_TABLE_GRID_COLS } from '@/lib/kpo-table-grid'
 import { formatOfflineTimestamp, loadOfflineKpoPrihodi, loadOfflineProfile, saveOfflineKpoPrihodi } from '@/lib/offline-data-cache'
 import { isProFromRow } from '@/lib/plan'
 import { ProUpgradeModal } from '@/components/ProUpgradeModal'
+import { KpoTableSkeleton } from '@/components/PageSkeletons'
 
 const supabase = getSupabaseBrowser()
 
@@ -587,7 +589,7 @@ export default function KpoPage() {
     marginBottom: 12,
   }
 
-  const kpoGridCols = '36px 88px minmax(96px,1.25fr) 96px 72px 86px 76px'
+  const kpoGridCols = KPO_TABLE_GRID_COLS
 
   return (
     <div className="kpo-page" style={{ color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
@@ -806,10 +808,7 @@ export default function KpoPage() {
         </div>
 
         {loading ? (
-          <div className="kpo-loading">
-            <span className="spinner" aria-hidden />
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Učitavanje prihoda…</span>
-          </div>
+          <KpoTableSkeleton rows={4} />
         ) : filtrirane.length === 0 ? (
           <div className="kpo-empty">
             <p style={{ fontSize: 40, margin: '0 0 12px 0', lineHeight: 1 }} aria-hidden>📋</p>

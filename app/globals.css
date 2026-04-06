@@ -27,6 +27,10 @@ html, body {
   --accent-dim:    rgba(0, 200, 150, 0.1);
   --shadow:        0 4px 24px rgba(0,0,0,0.4);
 
+  /* Loading skeletons (tamna pozadina ~#0a0a0a, blokovi nešto svetliji) */
+  --skeleton-base:      #1a1a1a;
+  --skeleton-highlight: #2a2a2a;
+
   /* Alert: info / warning / danger (danger = umeren crveni, ne „neon“) */
   --alert-info-bg:       rgba(96, 165, 250, 0.1);
   --alert-info-border:   rgba(96, 165, 250, 0.28);
@@ -54,6 +58,9 @@ html, body {
   --accent:        #00c98a;
   --accent-dim:    rgba(0, 201, 138, 0.12);
   --shadow:        0 4px 24px rgba(0,0,0,0.08);
+
+  --skeleton-base:      #e5e7eb;
+  --skeleton-highlight: #f3f4f6;
 
   --alert-info-bg:       rgba(59, 130, 246, 0.09);
   --alert-info-border:   rgba(59, 130, 246, 0.28);
@@ -1367,18 +1374,44 @@ body.install-app-banner-visible {
   border: 0;
 }
 
-/* Dashboard loading skeletons */
-@keyframes dashboard-skeleton-pulse {
-  0%,
-  100% {
-    opacity: 0.42;
+/* Loading skeletons (shimmer) */
+@keyframes pausalac-skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
   }
-  50% {
-    opacity: 0.78;
+  100% {
+    background-position: -200% 0;
   }
 }
+@keyframes pausalac-content-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.pausalac-fade-in-on-mount {
+  animation: pausalac-content-fade-in 0.35s ease-out;
+}
 .dashboard-skeleton-line {
-  background: var(--border);
   border-radius: 6px;
-  animation: dashboard-skeleton-pulse 1.15s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 0%,
+    var(--skeleton-highlight) 42%,
+    var(--skeleton-base) 84%
+  );
+  background-size: 200% 100%;
+  animation: pausalac-skeleton-shimmer 1.35s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-skeleton-line {
+    animation: none;
+    background: var(--skeleton-highlight);
+    opacity: 0.85;
+  }
+  .pausalac-fade-in-on-mount {
+    animation: none;
+  }
 }
