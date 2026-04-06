@@ -24,8 +24,8 @@ const faqItems = [
     a: 'Knjiga poslovnih promena je zakonska obaveza svakog paušalca. App je vodi automatski kada označiš fakturu kao plaćenu.',
   },
   {
-    q: 'Mogu li da promenim plan?',
-    a: 'Da, u svakom trenutku. Ako pređeš sa Pro na besplatni plan, podaci ostaju sačuvani.',
+    q: 'Mogu li da otkažem pretplatu?',
+    a: 'Da, u svakom trenutku. Tvoji podaci ostaju sačuvani na nalogu.',
   },
 ]
 
@@ -146,7 +146,7 @@ export function LandingPage() {
                 boxShadow: `0 0 24px ${ACCENT}35`,
               }}
             >
-              Počni besplatno
+              Registruj se
             </Link>
             <Link
               href="/login"
@@ -321,99 +321,50 @@ export function LandingPage() {
 
         {/* PRICING */}
         <section id="cena" style={{ padding: '56px 20px', borderTop: '1px solid #1f1f1f', scrollMarginTop: 72 }}>
-          <div style={{ maxWidth: 900, margin: '0 auto' }}>
+          <div style={{ maxWidth: 520, margin: '0 auto' }}>
             <h2 style={{ fontSize: 'clamp(1.5rem, 4vw, 2rem)', fontWeight: 900, margin: '0 0 28px 0', textAlign: 'center' }}>
-              Jednostavne cene
+              Jedna cena
             </h2>
             <div
               style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                gap: 20,
-                alignItems: 'stretch',
+                background: 'linear-gradient(145deg, rgba(0,200,150,0.08) 0%, #111 40%)',
+                border: `2px solid ${ACCENT}`,
+                borderRadius: 18,
+                padding: 24,
+                display: 'flex',
+                flexDirection: 'column',
               }}
             >
-              <div
+              <div style={{ fontWeight: 800, fontSize: 13, color: ACCENT, letterSpacing: '0.08em', marginBottom: 8 }}>
+                PAUŠO
+              </div>
+              <ul style={{ margin: '0 0 20px 0', paddingLeft: 18, color: '#aaa', fontSize: 14, lineHeight: 1.7, flex: 1 }}>
+                <li>Praćenje prihoda, limita i KPO knjige</li>
+                <li>Fakture i viševalutno fakturisanje (EUR, USD)</li>
+                <li>PDF izvoz KPO knjige</li>
+                <li>DOO kalkulator</li>
+                <li>Rokovi i podsetnici</li>
+              </ul>
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontSize: 30, fontWeight: 900 }}>4,99 €</span>
+                <span style={{ fontSize: 15, color: '#888', fontWeight: 600 }}> / mesec</span>
+              </div>
+              <p style={{ margin: '0 0 16px 0', color: '#777', fontSize: 13 }}>Mesečna pretplata</p>
+              <Link
+                href="/register"
                 style={{
-                  background: '#111',
-                  border: '1px solid #1f1f1f',
-                  borderRadius: 18,
-                  padding: 24,
-                  display: 'flex',
-                  flexDirection: 'column',
+                  display: 'block',
+                  textAlign: 'center',
+                  background: ACCENT,
+                  color: '#000',
+                  fontWeight: 800,
+                  padding: '14px 18px',
+                  borderRadius: 12,
+                  textDecoration: 'none',
                 }}
               >
-                <div style={{ fontWeight: 800, fontSize: 13, color: '#888', letterSpacing: '0.08em', marginBottom: 8 }}>BESPLATNO</div>
-                <ul style={{ margin: '0 0 20px 0', paddingLeft: 18, color: '#aaa', fontSize: 14, lineHeight: 1.7, flex: 1 }}>
-                  <li>Praćenje prihoda i limita</li>
-                  <li>Rokovi i podsetnici</li>
-                  <li>Do 5 faktura mesečno</li>
-                  <li>KPO knjiga</li>
-                </ul>
-                <div style={{ fontSize: 28, fontWeight: 900, marginBottom: 16 }}>
-                  0 <span style={{ fontSize: 16, color: '#888', fontWeight: 600 }}>RSD</span>
-                </div>
-                <Link
-                  href="/register"
-                  style={{
-                    display: 'block',
-                    textAlign: 'center',
-                    background: '#1a1a1a',
-                    border: '1px solid #2a2a2a',
-                    color: '#fff',
-                    fontWeight: 700,
-                    padding: '14px 18px',
-                    borderRadius: 12,
-                    textDecoration: 'none',
-                  }}
-                >
-                  Počni besplatno
-                </Link>
-              </div>
-
-              <div
-                style={{
-                  background: 'linear-gradient(145deg, rgba(0,200,150,0.08) 0%, #111 40%)',
-                  border: `2px solid ${ACCENT}`,
-                  borderRadius: 18,
-                  padding: 24,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  position: 'relative',
-                }}
-              >
-                <div style={{ fontWeight: 800, fontSize: 13, color: ACCENT, letterSpacing: '0.08em', marginBottom: 8 }}>
-                  PRO ⭐
-                </div>
-                <ul style={{ margin: '0 0 20px 0', paddingLeft: 18, color: '#aaa', fontSize: 14, lineHeight: 1.7, flex: 1 }}>
-                  <li>Sve iz besplatnog plana</li>
-                  <li>Neograničene fakture</li>
-                  <li>Viševalutno fakturisanje (EUR, USD)</li>
-                  <li>PDF izvoz KPO knjige</li>
-                  <li>DOO kalkulator</li>
-                  <li>Prioritetna podrška</li>
-                </ul>
-                <div style={{ marginBottom: 6 }}>
-                  <span style={{ fontSize: 30, fontWeight: 900 }}>4,99 €</span>
-                  <span style={{ fontSize: 15, color: '#888', fontWeight: 600 }}> / mesec</span>
-                </div>
-                <p style={{ margin: '0 0 16px 0', color: '#777', fontSize: 13 }}>Mesečna pretplata</p>
-                <Link
-                  href="/register?plan=pro"
-                  style={{
-                    display: 'block',
-                    textAlign: 'center',
-                    background: ACCENT,
-                    color: '#000',
-                    fontWeight: 800,
-                    padding: '14px 18px',
-                    borderRadius: 12,
-                    textDecoration: 'none',
-                  }}
-                >
-                  Isprobaj 14 dana besplatno
-                </Link>
-              </div>
+                Registruj se
+              </Link>
             </div>
             <p style={{ textAlign: 'center', color: '#666', fontSize: 13, marginTop: 20 }}>
               Bez kreditne kartice. Otkaži kada hoćeš.
@@ -497,7 +448,7 @@ export function LandingPage() {
                 Prijavi se
               </Link>
               <Link href="/register" style={{ color: '#aaa', textDecoration: 'none', fontSize: 14 }}>
-                Počni besplatno
+                Registruj se
               </Link>
               <a href="mailto:kontakt@pausalac.app" style={{ color: '#aaa', textDecoration: 'none', fontSize: 14 }}>
                 Kontakt

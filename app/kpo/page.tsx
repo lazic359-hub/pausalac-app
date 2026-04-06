@@ -12,9 +12,7 @@ import { FileSpreadsheet, FileDown, Pencil, Trash2, Info } from 'lucide-react'
 import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu, readProfilFromStorage } from '@/lib/profile'
 import { brojRacunaZaPrikaz } from '@/lib/kpo-prihod'
 import { KPO_TABLE_GRID_COLS } from '@/lib/kpo-table-grid'
-import { formatOfflineTimestamp, loadOfflineKpoPrihodi, loadOfflineProfile, saveOfflineKpoPrihodi } from '@/lib/offline-data-cache'
-import { isProFromRow } from '@/lib/plan'
-import { ProUpgradeModal } from '@/components/ProUpgradeModal'
+import { formatOfflineTimestamp, loadOfflineKpoPrihodi, saveOfflineKpoPrihodi } from '@/lib/offline-data-cache'
 import { KpoTableSkeleton } from '@/components/PageSkeletons'
 import { ListEmptyState } from '@/components/ListEmptyState'
 
@@ -79,8 +77,6 @@ export default function KpoPage() {
   const [toast, setToast] = useState<{ message: string; tone: 'success' | 'danger' } | null>(null)
   const [kpoLimitRsd, setKpoLimitRsd] = useState(6_000_000)
   const [kpoAsOf, setKpoAsOf] = useState<string | null>(null)
-  const [proEntitled, setProEntitled] = useState(false)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
 
   useEffect(() => {
     const sync = () => setKpoLimitRsd(getKpoLimitRsdFromStorage())
@@ -108,21 +104,6 @@ export default function KpoPage() {
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [user])
-
-  useEffect(() => {
-    if (!user) return
-    const syncPro = async () => {
-      if (typeof window !== 'undefined' && !navigator.onLine) {
-        const snap = loadOfflineProfile(user.id)
-        setProEntitled(isProFromRow(snap?.data?.plan, snap?.data?.pro_until))
-        return
-      }
-      const { data } = await supabase.from('profiles').select('plan, pro_until').eq('id', user.id).maybeSingle()
-      const row = data as { plan?: string | null; pro_until?: string | null } | null
-      setProEntitled(isProFromRow(row?.plan, row?.pro_until))
-    }
-    void syncPro()
   }, [user])
 
   const ucitajPrihode = async (userId: string) => {
@@ -617,8 +598,6 @@ export default function KpoPage() {
         }}
       />
 
-      <ProUpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
-
       {editOpen && (
         <div
           className="kpo-modal-overlay"
@@ -680,17 +659,7 @@ export default function KpoPage() {
             <FileSpreadsheet size={20} strokeWidth={2.25} aria-hidden />
             Excel
           </button>
-          <button
-            type="button"
-            className="kpo-export-btn kpo-export-btn--pdf"
-            onClick={() => {
-              if (!proEntitled) {
-                setUpgradeOpen(true)
-                return
-              }
-              void preuzmiPDF()
-            }}
-          >
+          <button type="button" className="kpo-export-btn kpo-export-btn--pdf" onClick={() => void preuzmiPDF()}>
             <FileDown size={20} strokeWidth={2.25} aria-hidden />
             PDF
           </button>

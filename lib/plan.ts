@@ -1,9 +1,6 @@
 /**
- * Pro plan i ograničenja za besplatni nivo.
- * TODO: integrisati procesor plaćanja (Stripe ili PaySpot za Srbiju) — sada admin ručno postavlja `plan` i `pro_until` u Supabase.
+ * Keš plana iz Supabase (hydrate) — za buduću integraciju naplate.
  */
-
-export const FREE_INVOICES_PER_MONTH = 5
 
 export type PlanRow = {
   plan?: string | null
@@ -25,18 +22,4 @@ export function setPlanMemory(row: PlanRow | null) {
 
 export function clearPlanMemory() {
   planMemory = null
-}
-
-/** Da li je korisnik trenutno na aktivnom Pro nivou (iz keša posle hydrate). */
-export function isProActiveFromCache(): boolean {
-  if (typeof window === 'undefined') return false
-  if (!planMemory) return false
-  return isProFromRow(planMemory.plan, planMemory.pro_until)
-}
-
-export function isProFromRow(plan: string | null | undefined, proUntil: string | null | undefined): boolean {
-  const p = plan ?? 'free'
-  if (p !== 'pro') return false
-  if (proUntil == null || proUntil === '') return true
-  return new Date(proUntil).getTime() > Date.now()
 }

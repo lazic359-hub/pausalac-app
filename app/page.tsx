@@ -40,7 +40,7 @@ const jsonLd = {
     '@type': 'Offer',
     price: '4.99',
     priceCurrency: 'EUR',
-    description: 'Pro plan — jedna cena, mesečna pretplata',
+    description: 'Mesečna pretplata — jedna cena',
   },
   description:
     'Paušo — džepni knjigovođa za paušalce u Srbiji. Praćenje prihoda, rokova, KPO knjige i fakturisanje.',

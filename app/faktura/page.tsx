@@ -6,8 +6,6 @@ import { readProfilFromStorage } from '@/lib/profile'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useRouter } from 'next/navigation'
 import { getNbsToRsdRateMeta } from '@/lib/exchange-rate'
-import { FREE_INVOICES_PER_MONTH, isProFromRow } from '@/lib/plan'
-import { ProUpgradeModal } from '@/components/ProUpgradeModal'
 const PreuzmiPDFDugme = dynamic(() => import('../../components/PreuzmiPDFDugme'), { ssr: false })
 
 const supabase = getSupabaseBrowser()
@@ -21,17 +19,6 @@ type Profil = {
 }
 type Stavka = { id: number; opis: string; iznos: string }
 const KURSEVI: Record<Valuta, number> = { RSD: 1, EUR: 117, USD: 108 }
-
-function graniceTekucegMeseca() {
-  const now = new Date()
-  const y = now.getFullYear()
-  const m = now.getMonth() + 1
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const start = `${y}-${pad(m)}-01`
-  const last = new Date(y, m, 0).getDate()
-  const end = `${y}-${pad(m)}-${pad(last)}`
-  return { start, end }
-}
 
 async function sledeciBrojFakture(userId: string): Promise<string> {
   const godina = new Date().getFullYear()
@@ -132,10 +119,6 @@ export default function FakturaPage() {
   const klijentDropdownRef = useRef<HTMLDivElement>(null)
   const [rokPlacanja, setRokPlacanja] = useState<'7' | '15' | '30' | '60' | 'custom'>('30')
   const [rokPlacanjaDatum, setRokPlacanjaDatum] = useState('')
-  const [proEntitled, setProEntitled] = useState(false)
-  const [entitlementsLoaded, setEntitlementsLoaded] = useState(false)
-  const [faktureCountMonth, setFaktureCountMonth] = useState(0)
-  const [upgradeOpen, setUpgradeOpen] = useState(false)
   const rokPlacanjaAktuelanDatum = (() => {
     if (rokPlacanja === 'custom') return rokPlacanjaDatum || ''
     const d = new Date(datum)
@@ -193,28 +176,6 @@ export default function FakturaPage() {
     } else {
       setBrojFakture((prev) => (prev === '' ? `${new Date().getFullYear()}-001` : prev))
     }
-  }, [user])
-
-  useEffect(() => {
-    if (!user) return
-    const { start, end } = graniceTekucegMeseca()
-    let cancelled = false
-    void Promise.all([
-      supabase.from('profiles').select('plan, pro_until').eq('id', user.id).maybeSingle(),
-      supabase
-        .from('fakture')
-        .select('id', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .gte('datum', start)
-        .lte('datum', end),
-    ]).then(([profRes, countRes]) => {
-      if (cancelled) return
-      const row = profRes.data as { plan?: string | null; pro_until?: string | null } | null
-      setProEntitled(isProFromRow(row?.plan, row?.pro_until))
-      setFaktureCountMonth(countRes.count ?? 0)
-      setEntitlementsLoaded(true)
-    })
-    return () => { cancelled = true }
   }, [user])
 
   useEffect(() => {
@@ -277,10 +238,6 @@ export default function FakturaPage() {
   const ima = (key: string) => greske.includes(key)
 
   const sacuvajFakturu = async () => {
-    if (!proEntitled && faktureCountMonth >= FREE_INVOICES_PER_MONTH) {
-      setUpgradeOpen(true)
-      return
-    }
     const g: string[] = []
     if (!brojFakture.trim()) g.push('brojFakture')
     if (!klijentNaziv) g.push('klijentNaziv')
@@ -332,7 +289,6 @@ export default function FakturaPage() {
       }
     }
     setSacuvano(true)
-    if (!proEntitled) setFaktureCountMonth((c) => c + 1)
   }
 
   if (authLoading || !user) {
@@ -345,8 +301,6 @@ export default function FakturaPage() {
 
   return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', color: 'var(--text-primary)', fontFamily: 'system-ui, sans-serif' }}>
-      <ProUpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
-
       {/* Header */}
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 12 }}>
         <button onClick={() => window.history.back()}
@@ -417,13 +371,7 @@ export default function FakturaPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0' }}>VALUTA FAKTURE</p>
           <ValutaPicker
             valuta={valuta}
-            onChange={(v) => {
-              if (v !== 'RSD' && !proEntitled) {
-                setUpgradeOpen(true)
-                return
-              }
-              setValuta(v)
-            }}
+            onChange={(v) => setValuta(v)}
           />
 
           {inostranstvo && (
@@ -709,7 +657,7 @@ export default function FakturaPage() {
             />
           ) : (
             <button onClick={sacuvajFakturu}
-              disabled={!entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim()))}
+              disabled={inostranstvo && (kursNbsLoading || !kurs.trim())}
               style={{
                 width: '100%',
                 background: 'var(--accent)',
@@ -719,13 +667,13 @@ export default function FakturaPage() {
                 padding: '16px',
                 borderRadius: 12,
                 border: 'none',
-                cursor: !entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim())) ? 'not-allowed' : 'pointer',
-                opacity: !entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim())) ? 0.65 : 1,
+                cursor: inostranstvo && (kursNbsLoading || !kurs.trim()) ? 'not-allowed' : 'pointer',
+                opacity: inostranstvo && (kursNbsLoading || !kurs.trim()) ? 0.65 : 1,
                 boxShadow: '0 0 20px #00C89640',
                 transition: 'box-shadow 0.2s, opacity 0.2s',
               }}
               onMouseEnter={e => {
-                if (!entitlementsLoaded || (inostranstvo && (kursNbsLoading || !kurs.trim()))) return
+                if (inostranstvo && (kursNbsLoading || !kurs.trim())) return
                 e.currentTarget.style.boxShadow = '0 0 40px #00C89670'
               }}
               onMouseLeave={e => {

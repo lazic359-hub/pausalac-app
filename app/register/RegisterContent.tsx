@@ -37,7 +37,6 @@ export default function RegisterContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const next = searchParams.get('next') || '/dashboard'
-  const planParam = searchParams.get('plan')
 
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
@@ -111,23 +110,6 @@ export default function RegisterContent() {
 
   return (
     <AuthShell title="Registracija" subtitle="Napravi nalog za Paušo">
-      {planParam === 'pro' ? (
-        <p
-          style={{
-            margin: '0 0 16px 0',
-            padding: '12px 14px',
-            borderRadius: 12,
-            background: 'var(--accent-dim)',
-            border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)',
-            color: 'var(--text-primary)',
-            fontSize: 13,
-            lineHeight: 1.5,
-          }}
-        >
-          Biraš <strong>Pro</strong> plan. Posle registracije pretplatu ručno aktivira administrator u Supabase-u (plaćanje
-          uskoro preko procesora).
-        </p>
-      ) : null}
       <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 16px 0' }}>PODACI ZA NALOG</p>
       <input
         type="text"

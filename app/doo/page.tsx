@@ -17,8 +17,6 @@ import {
   pausalacGodisnjeIzMesečnog,
   razlikaDooMinusPausal,
 } from '@/lib/doo-calculator'
-import { isProFromRow } from '@/lib/plan'
-
 const supabase = getSupabaseBrowser()
 
 type PrihodRow = { iznos_rsd: number | null; datum: string }
@@ -40,7 +38,6 @@ export default function DooCalculatorPage() {
   const [prihodInput, setPrihodInput] = useState('')
   const prefillOnce = useRef(false)
   const [mesečnoPausal, setMesečnoPausal] = useState(0)
-  const [proEntitled, setProEntitled] = useState(false)
 
   const godina = new Date().getFullYear()
 
@@ -66,16 +63,9 @@ export default function DooCalculatorPage() {
       setDataLoading(true)
       const { data: prof } = await supabase
         .from('profiles')
-        .select('porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, plan, pro_until')
+        .select('porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni')
         .eq('id', user.id)
         .single()
-
-      const proOk = isProFromRow(prof?.plan, prof?.pro_until)
-      setProEntitled(proOk)
-      if (!proOk) {
-        setDataLoading(false)
-        return
-      }
 
       const y = String(godina)
       const { data: rows } = await supabase
@@ -207,33 +197,6 @@ export default function DooCalculatorPage() {
       <div className="page-content" style={{ maxWidth: 560, margin: '0 auto', padding: '20px 16px 120px 16px' }}>
         {dataLoading ? (
           <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Učitavanje prihoda i poreskog rešenja…</p>
-        ) : !proEntitled ? (
-          <div style={kartica}>
-            <p style={{ margin: '0 0 10px 0', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em' }}>
-              PRO PLAN
-            </p>
-            <p style={{ margin: '0 0 14px 0', fontSize: 17, fontWeight: 800, lineHeight: 1.35 }}>
-              DOO kalkulator je deo Pro plana
-            </p>
-            <p style={{ margin: '0 0 18px 0', fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.55 }}>
-              Nadogradi na Pro: mesečna pretplata od 4,99 € — neograničene fakture, viševalutno fakturisanje i PDF izvoz KPO knjige.
-            </p>
-            <a
-              href="/pricing"
-              style={{
-                display: 'inline-block',
-                background: 'var(--accent)',
-                color: '#000',
-                fontWeight: 800,
-                fontSize: 15,
-                padding: '12px 18px',
-                borderRadius: 12,
-                textDecoration: 'none',
-              }}
-            >
-              Nadogradi na Pro
-            </a>
-          </div>
         ) : (
           <>
             <div style={kartica}>
