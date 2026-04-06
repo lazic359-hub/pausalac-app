@@ -11,6 +11,7 @@ import { useRouter } from 'next/navigation'
 import { isUnpaidInvoiceRow } from '@/lib/faktura-status'
 import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
 import { PrihodiListSkeleton } from '@/components/PageSkeletons'
+import { ListEmptyState } from '@/components/ListEmptyState'
 
 const supabase = getSupabaseBrowser()
 
@@ -537,103 +538,190 @@ export default function PrihodiPage() {
           </div>
         )}
 
-        <h2 style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', marginBottom: 12 }}>Lista prihoda</h2>
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 14, marginBottom: 12 }}>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const, marginBottom: 10 }}>
-            <div style={{ flex: '1 1 140px' }}>
-              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Mesec</label>
-              <select
-                value={filterMonth}
-                onChange={e => setFilterMonth(e.target.value)}
-                style={{ ...inp, marginBottom: 0 }}
-              >
-                <option value="all">Svi</option>
-                {Object.keys(monthLabels).map(m => (
-                  <option key={m} value={m}>{monthLabels[m]}</option>
-                ))}
-              </select>
-            </div>
-            <div style={{ flex: '1 1 120px' }}>
-              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Godina</label>
-              <select
-                value={filterYear}
-                onChange={e => setFilterYear(e.target.value)}
-                style={{ ...inp, marginBottom: 0 }}
-              >
-                <option value="all">Sve</option>
-                {years.map(y => (
-                  <option key={y} value={y}>{y}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Pretraga (klijent / opis)</label>
-          <input
-            type="text"
-            placeholder="Npr. Acme, konsultacije…"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ ...inp, marginBottom: 0 }}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 10 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-              Prikazano: <b style={{ color: 'var(--text-primary)' }}>{prihodiFiltered.length}</b> / {prihodi.length}
-            </span>
-            <button
-              type="button"
-              onClick={() => { setFilterMonth('all'); setFilterYear('all'); setSearch('') }}
-              style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}
-            >
-              Reset
-            </button>
-          </div>
-        </div>
         {loading ? (
-          <PrihodiListSkeleton rows={4} />
-        ) : prihodiFiltered.length === 0 ? (
-          <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px 0' }}>Nema prihoda.</p>
-        ) : (
-          <div className="table-scroll-wrap" style={{ marginLeft: 0, marginRight: 0, paddingLeft: 0, paddingRight: 0 }}>
-          <div className="table-min-width" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', minWidth: 360 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>DATUM</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>KLIJENT</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'right' }}>IZNOS</span>
-              <span />
-            </div>
-            {prihodiFiltered.map(p => (
-              <div key={p.id}>
-                <div
-                  className="interactive-card"
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => { setSelectedIncome(p); setIncomeDetailsOpen(true) }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      setSelectedIncome(p)
-                      setIncomeDetailsOpen(true)
-                    }
-                  }}
-                  style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}
-                  aria-label={`Detalji prihoda: ${p.klijent}`}
-                >
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDatum(p.datum)}</span>
-                  <span style={{ fontWeight: 600, fontSize: 13 }}>{p.klijent}</span>
-                  <span style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>{formatIznos(p.iznos_rsd)} RSD</span>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setBrisanjeId(p.id) }}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}
-                    aria-label="Obriši prihod"
+          <>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', marginBottom: 12 }}>Lista prihoda</h2>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const, marginBottom: 10 }}>
+                <div style={{ flex: '1 1 140px' }}>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Mesec</label>
+                  <select
+                    value={filterMonth}
+                    onChange={e => setFilterMonth(e.target.value)}
+                    style={{ ...inp, marginBottom: 0 }}
                   >
-                    ×
-                  </button>
+                    <option value="all">Svi</option>
+                    {Object.keys(monthLabels).map(m => (
+                      <option key={m} value={m}>{monthLabels[m]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: '1 1 120px' }}>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Godina</label>
+                  <select
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                    style={{ ...inp, marginBottom: 0 }}
+                  >
+                    <option value="all">Sve</option>
+                    {years.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
-            ))}
-          </div>
-          </div>
+              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Pretraga (klijent / opis)</label>
+              <input
+                type="text"
+                placeholder="Npr. Acme, konsultacije…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ ...inp, marginBottom: 0 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Prikazano: <b style={{ color: 'var(--text-primary)' }}>{prihodiFiltered.length}</b> / {prihodi.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setFilterMonth('all'); setFilterYear('all'); setSearch('') }}
+                  style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+            <PrihodiListSkeleton rows={4} />
+          </>
+        ) : prihodi.length === 0 ? (
+          <ListEmptyState
+            icon="💰"
+            headline="Još nemaš evidentiranih prihoda"
+            subtext={'Dodaj prvi prihod da počneš da pratiš\nsvoje zarade i limit od 6.000.000 RSD.'}
+          >
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                background: 'var(--accent)',
+                color: '#000',
+                fontWeight: 700,
+                fontSize: 15,
+                padding: '14px 20px',
+                borderRadius: 12,
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 0 20px #00C89640',
+                transition: 'transform 0.15s ease, box-shadow 0.2s ease',
+              }}
+            >
+              <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>＋</span>
+              Dodaj prihod
+            </button>
+          </ListEmptyState>
+        ) : (
+          <>
+            <h2 style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', marginBottom: 12 }}>Lista prihoda</h2>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 14, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' as const, marginBottom: 10 }}>
+                <div style={{ flex: '1 1 140px' }}>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Mesec</label>
+                  <select
+                    value={filterMonth}
+                    onChange={e => setFilterMonth(e.target.value)}
+                    style={{ ...inp, marginBottom: 0 }}
+                  >
+                    <option value="all">Svi</option>
+                    {Object.keys(monthLabels).map(m => (
+                      <option key={m} value={m}>{monthLabels[m]}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ flex: '1 1 120px' }}>
+                  <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Godina</label>
+                  <select
+                    value={filterYear}
+                    onChange={e => setFilterYear(e.target.value)}
+                    style={{ ...inp, marginBottom: 0 }}
+                  >
+                    <option value="all">Sve</option>
+                    {years.map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, marginBottom: 6 }}>Pretraga (klijent / opis)</label>
+              <input
+                type="text"
+                placeholder="Npr. Acme, konsultacije…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                style={{ ...inp, marginBottom: 0 }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Prikazano: <b style={{ color: 'var(--text-primary)' }}>{prihodiFiltered.length}</b> / {prihodi.length}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setFilterMonth('all'); setFilterYear('all'); setSearch('') }}
+                  style={{ padding: '8px 12px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+            {prihodiFiltered.length === 0 ? (
+              <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '40px 0' }}>Nema prihoda za ove filtere.</p>
+            ) : (
+              <div className="table-scroll-wrap" style={{ marginLeft: 0, marginRight: 0, paddingLeft: 0, paddingRight: 0 }}>
+              <div className="table-min-width" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden', minWidth: 360 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 40px', gap: 8, padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-primary)' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>DATUM</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>KLIJENT</span>
+                  <span style={{ color: 'var(--text-muted)', fontSize: 11, textAlign: 'right' }}>IZNOS</span>
+                  <span />
+                </div>
+                {prihodiFiltered.map(p => (
+                  <div key={p.id}>
+                    <div
+                      className="interactive-card"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { setSelectedIncome(p); setIncomeDetailsOpen(true) }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          setSelectedIncome(p)
+                          setIncomeDetailsOpen(true)
+                        }
+                      }}
+                      style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 40px', gap: 8, padding: '14px 16px', borderBottom: '1px solid var(--border)', alignItems: 'center' }}
+                      aria-label={`Detalji prihoda: ${p.klijent}`}
+                    >
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDatum(p.datum)}</span>
+                      <span style={{ fontWeight: 600, fontSize: 13 }}>{p.klijent}</span>
+                      <span style={{ textAlign: 'right', color: 'var(--accent)', fontWeight: 700, fontSize: 13 }}>{formatIznos(p.iznos_rsd)} RSD</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setBrisanjeId(p.id) }}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}
+                        aria-label="Obriši prihod"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       <BottomNav />

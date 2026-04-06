@@ -20,6 +20,7 @@ import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
 import { readProfilFromStorage } from '@/lib/profile'
 import { formatOfflineTimestamp, loadOfflineFaktureList, saveOfflineFaktureList } from '@/lib/offline-data-cache'
 import { FaktureListSkeleton } from '@/components/PageSkeletons'
+import { ListEmptyState } from '@/components/ListEmptyState'
 
 const supabase = getSupabaseBrowser()
 
@@ -51,7 +52,8 @@ function formatDatum(d: string) {
   return `${parts[2]}.${parts[1]}.${parts[0]}.`
 }
 
-function NovaFakturaLink({ compact }: { compact?: boolean }) {
+function NovaFakturaLink({ compact, label }: { compact?: boolean; label?: string }) {
+  const text = label ?? 'Nova faktura'
   return (
     <Link
       href="/faktura"
@@ -77,7 +79,7 @@ function NovaFakturaLink({ compact }: { compact?: boolean }) {
       }}
     >
       <span aria-hidden style={{ fontSize: compact ? 16 : 18, lineHeight: 1 }}>＋</span>
-      Nova faktura
+      {text}
     </Link>
   )
 }
@@ -311,24 +313,13 @@ export default function FakturePage() {
         {loading ? (
           <FaktureListSkeleton rows={4} />
         ) : fakture.length === 0 ? (
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: 20,
-              padding: '40px 28px',
-              textAlign: 'center',
-            }}
+          <ListEmptyState
+            icon="🧾"
+            headline="Još nemaš faktura"
+            subtext={'Kreiraj prvu fakturu i ona će se automatski\nevidentirati u KPO knjizi kada bude plaćena.'}
           >
-            <div style={{ fontSize: 48, lineHeight: 1.2, marginBottom: 16 }} aria-hidden>🧾</div>
-            <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 10px 0', color: 'var(--text-primary)' }}>
-              Još nemaš faktura
-            </h2>
-            <p style={{ color: 'var(--text-muted)', fontSize: 15, lineHeight: 1.5, margin: '0 0 24px 0', maxWidth: 320, marginLeft: 'auto', marginRight: 'auto' }}>
-              Kreiraj prvu fakturu za klijenta — biće ovde u listi i moći ćeš da je označiš kao plaćenu ili da preuzmeš PDF.
-            </p>
-            <NovaFakturaLink />
-          </div>
+            <NovaFakturaLink label="Kreiraj prvu fakturu" />
+          </ListEmptyState>
         ) : (
           <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center', flexWrap: 'wrap' }}>

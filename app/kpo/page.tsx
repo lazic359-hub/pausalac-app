@@ -16,6 +16,7 @@ import { formatOfflineTimestamp, loadOfflineKpoPrihodi, loadOfflineProfile, save
 import { isProFromRow } from '@/lib/plan'
 import { ProUpgradeModal } from '@/components/ProUpgradeModal'
 import { KpoTableSkeleton } from '@/components/PageSkeletons'
+import { ListEmptyState } from '@/components/ListEmptyState'
 
 const supabase = getSupabaseBrowser()
 
@@ -809,6 +810,35 @@ export default function KpoPage() {
 
         {loading ? (
           <KpoTableSkeleton rows={4} />
+        ) : prihodi.length === 0 ? (
+          <ListEmptyState
+            icon="📒"
+            headline="KPO knjiga je prazna"
+            subtext={'KPO se automatski popunjava kada označiš\nfakturu kao plaćenu. Nema ručnog unosa.'}
+          >
+            <Link
+              href="/fakture"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                background: 'var(--accent)',
+                color: '#000',
+                fontWeight: 700,
+                fontSize: 15,
+                padding: '14px 20px',
+                borderRadius: 12,
+                textDecoration: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 0 20px #00C89640',
+                transition: 'transform 0.15s ease, box-shadow 0.2s ease',
+              }}
+            >
+              Idi na fakture
+            </Link>
+          </ListEmptyState>
         ) : filtrirane.length === 0 ? (
           <div className="kpo-empty">
             <p style={{ fontSize: 40, margin: '0 0 12px 0', lineHeight: 1 }} aria-hidden>📋</p>
