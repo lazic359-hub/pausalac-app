@@ -5,7 +5,7 @@ import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { BottomNav } from '@/components/BottomNav'
 import { ConfirmModal } from '@/components/ConfirmModal'
-import jsPDF from 'jspdf'
+import { downloadOfficialKpoPdf } from '@/lib/kpo-official-pdf'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { FileSpreadsheet, FileDown, Pencil, Trash2, Info } from 'lucide-react'
@@ -309,174 +309,34 @@ export default function KpoPage() {
   }
 
   const preuzmiPDF = async () => {
-    const doc = new jsPDF()
-    const pageWidth = doc.internal.pageSize.getWidth()
-    const pageHeight = doc.internal.pageSize.getHeight()
-    const ukupnoStrana = () => (doc as any).internal.getNumberOfPages()
-    const sada = new Date().toLocaleString('sr-RS')
-
-    // 15mm margins (jsPDF default unit is mm)
-    const margin = 15
-    const contentWidth = pageWidth - margin * 2
-
-    const ascii = (t: string) => (t || '')
-      .replace(/[čć]/g, 'c').replace(/[ČĆ]/g, 'C')
-      .replace(/[š]/g, 's').replace(/[Š]/g, 'S')
-      .replace(/[ž]/g, 'z').replace(/[Ž]/g, 'Z')
-      .replace(/[đ]/g, 'dj').replace(/[Đ]/g, 'Dj')
-
     const profil = readProfilFromStorage() ?? {}
-    const nazivFirme = (profil.nazivFirme && String(profil.nazivFirme).trim()) ? ascii(String(profil.nazivFirme)) : '________________'
-    const pib = (profil.pib != null && String(profil.pib).trim() !== '') ? String(profil.pib) : '________________'
-    const adresa = ascii(String(profil.sediste ?? 'Adresa'))
-
-    const formatIznosPDF = (iznos: number) =>
-      new Intl.NumberFormat('sr-RS', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(iznos) + ' RSD'
-
-    const sortirane = filtriraneSortirane
-
-    /** Službeni obrazac KPO: Red. br. | Datum naplate | Naziv i adresa kupca | Broj računa | Iznos u RSD */
-    const colW1 = 10
-    const colW2 = 22
-    const colW4 = 24
-    const colW5 = 28
-    const colW3 = contentWidth - colW1 - colW2 - colW4 - colW5
-    const x1 = margin
-    const x2 = x1 + colW1
-    const x3 = x2 + colW2
-    const x4 = x3 + colW3
-    const x5 = x4 + colW4
-    const x6 = x5 + colW5
-    const rowHeightHeader = 10
-    const lineHeight = 5
-    const cellPadding = 2
-
-    const dodajFooter = () => {
-      const ukupno = ukupnoStrana()
-      for (let i = 1; i <= ukupno; i++) {
-        doc.setPage(i)
-        doc.setFontSize(8)
-        doc.setTextColor(150, 150, 150)
-        doc.text(`Generisano: ${sada}`, margin, pageHeight - 10)
-        doc.text(`Stranica ${i} od ${ukupno}`, pageWidth - margin, pageHeight - 10, { align: 'right' })
-      }
+    let rows: Prihod[] = []
+    if (typeof window !== 'undefined' && navigator.onLine && user) {
+      const { data: fresh } = await supabase
+        .from('prihodi')
+        .select('*')
+        .eq('user_id', user.id)
+        .gte('datum', `${selectedGodina}-01-01`)
+        .lte('datum', `${selectedGodina}-12-31`)
+        .order('datum', { ascending: true })
+      rows = (fresh as Prihod[]) ?? []
+    } else {
+      rows = sortiranePoGodini
     }
 
-    const drawRowBorders5 = (y: number, h: number) => {
-      doc.setDrawColor(0, 0, 0)
-      doc.line(x1, y, x6, y)
-      doc.line(x1, y + h, x6, y + h)
-      ;[x1, x2, x3, x4, x5, x6].forEach(x => {
-        doc.line(x, y, x, y + h)
-      })
-    }
-
-    const drawHeaderRow = (top: number) => {
-      doc.setDrawColor(0, 0, 0)
-      doc.rect(x1, top, colW1, rowHeightHeader, 'S')
-      doc.rect(x2, top, colW2, rowHeightHeader, 'S')
-      doc.rect(x3, top, colW3, rowHeightHeader, 'S')
-      doc.rect(x4, top, colW4, rowHeightHeader, 'S')
-      doc.rect(x5, top, colW5, rowHeightHeader, 'S')
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(7)
-      doc.text('Red. br.', x1 + colW1 / 2, top + 4, { align: 'center' })
-      doc.text('Datum naplate', x2 + colW2 / 2, top + 4, { align: 'center' })
-      doc.setFontSize(6.5)
-      doc.text('Naziv i adresa', x3 + colW3 / 2, top + 3.5, { align: 'center' })
-      doc.text('kupca', x3 + colW3 / 2, top + 7, { align: 'center' })
-      doc.setFontSize(7)
-      doc.text('Broj racuna', x4 + colW4 / 2, top + 4, { align: 'center' })
-      doc.text('Iznos u RSD', x5 + colW5 / 2, top + 4, { align: 'center' })
-      doc.setFont('helvetica', 'normal')
-    }
-
-    // ——— Top-left: Firma, PIB, Adresa ———
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(0, 0, 0)
-    doc.text('Firma: ' + nazivFirme, x1, margin + 5)
-    doc.text('PIB: ' + pib, x1, margin + 10)
-    doc.text('Adresa: ' + adresa, x1, margin + 15)
-
-    // ——— Top-right: Godina ———
-    doc.text('Godina: ' + selectedGodina + '.', pageWidth - margin, margin + 10, { align: 'right' })
-
-    // ——— Title: centered, bold, underlined ———
-    const title = 'KNJIGA O OSTVARENOM PROMETU (OBRAZAC KPO)'
-    doc.setFontSize(12)
-    doc.setFont('helvetica', 'bold')
-    doc.setTextColor(0, 0, 0)
-    const titleY = margin + 28
-    doc.text(title, pageWidth / 2, titleY, { align: 'center' })
-    const titleWidth = doc.getTextWidth(title)
-    doc.setDrawColor(0, 0, 0)
-    doc.line(pageWidth / 2 - titleWidth / 2, titleY + 1.5, pageWidth / 2 + titleWidth / 2, titleY + 1.5)
-
-    const tableTop = titleY + 10
-    drawHeaderRow(tableTop)
-
-    let y = tableTop + rowHeightHeader
-    const bottomY = pageHeight - 35
-
-    sortirane.forEach((p) => {
-      const rb = redniBrojMap.get(p.id) ?? 0
-      const datumStr = formatDatum(p.datum)
-      const brojRacStr = brojRacunaZaPrikaz(p.napomena, rb, selectedGodina)
-
-      doc.setFontSize(9)
-      const kupacLines = doc.splitTextToSize(ascii(p.klijent), Math.max(colW3 - cellPadding * 2, 10))
-      const brojRacLines = doc.splitTextToSize(ascii(brojRacStr), Math.max(colW4 - cellPadding * 2, 8))
-      const numLines = Math.max(1, kupacLines.length, brojRacLines.length)
-      const rowH = Math.max(rowHeightHeader, numLines * lineHeight + cellPadding)
-
-      if (y + rowH > bottomY) {
-        doc.addPage()
-        y = margin + rowHeightHeader
-        drawHeaderRow(margin)
-        y = margin + rowHeightHeader
-      }
-
-      drawRowBorders5(y, rowH)
-      doc.setTextColor(0, 0, 0)
-      const midY = y + rowH / 2 + 1.5
-      doc.text(String(rb), x1 + cellPadding, midY)
-      doc.text(datumStr, x2 + cellPadding, midY)
-      let lineY = y + cellPadding + 3.5
-      kupacLines.forEach((line: string) => {
-        doc.text(line, x3 + cellPadding, lineY)
-        lineY += lineHeight
-      })
-      lineY = y + cellPadding + 3.5
-      brojRacLines.forEach((line: string) => {
-        doc.text(line, x4 + cellPadding, lineY)
-        lineY += lineHeight
-      })
-      doc.text(formatIznosPDF(p.iznos_rsd ?? 0), x5 + colW5 - cellPadding, midY, { align: 'right' })
-      y += rowH
+    downloadOfficialKpoPdf({
+      rows,
+      godina: selectedGodina,
+      profil: {
+        pib: String(profil.pib ?? ''),
+        obveznik: String(profil.obveznik ?? ''),
+        nazivFirme: String(profil.nazivFirme ?? ''),
+        sediste: String(profil.sediste ?? ''),
+        sifraPoreskogObveznika: String(profil.sifraPoreskogObveznika ?? ''),
+        sifraDelatnosti: String(profil.sifraDelatnosti ?? ''),
+      },
+      filename: `KPO-${selectedGodina}-obrazac.pdf`,
     })
-
-    const ukupnoRowH = 9
-    drawRowBorders5(y, ukupnoRowH)
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(10)
-    doc.text('UKUPNO:', x3 + cellPadding, y + ukupnoRowH / 2 + 0.5)
-    doc.text(formatIznosPDF(ukupnoFilter), x5 + colW5 - cellPadding, y + ukupnoRowH / 2, { align: 'right' })
-    doc.setFont('helvetica', 'normal')
-    y += ukupnoRowH + 12
-
-    // ——— Bottom right: M.P. and (Potpis odgovornog lica) ———
-    const lastPage = ukupnoStrana()
-    doc.setPage(lastPage)
-    doc.setFontSize(9)
-    doc.setTextColor(0, 0, 0)
-    doc.text('M.P. _______________________', pageWidth - margin, pageHeight - 22, { align: 'right' })
-    doc.setFontSize(8)
-    doc.setTextColor(80, 80, 80)
-    doc.text('(Potpis odgovornog lica)', pageWidth - margin, pageHeight - 16, { align: 'right' })
-
-    dodajFooter()
-    doc.save(`KPO-${selectedGodina}-${filter}.pdf`)
   }
 
   const preuzmiExcel = async () => {
