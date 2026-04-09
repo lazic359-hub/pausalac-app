@@ -19,6 +19,21 @@ function notifyProfilUpdated() {
   window.dispatchEvent(new CustomEvent('pausalac-profil-updated'))
 }
 
+function humanizeSaveErrorMessage(msg: string): string {
+  const m = (msg || '').toLowerCase()
+  if (!m) return 'Greška pri čuvanju profila.'
+  if (m.includes('failed to fetch') || m.includes('could not fetch')) {
+    return 'Ne mogu da sačuvam profil (mrežna greška). Proveri internet i pokušaj ponovo.'
+  }
+  if (m.includes('network') || m.includes('timeout')) {
+    return 'Ne mogu da sačuvam profil (problem sa mrežom). Pokušaj ponovo.'
+  }
+  if (m.includes('jwt') || m.includes('session') || m.includes('not authenticated')) {
+    return 'Sesija nije važeća. Osveži stranu i prijavi se ponovo.'
+  }
+  return msg
+}
+
 type Step = 1 | 2 | 3
 
 function inpStyle(focused: boolean): React.CSSProperties {
@@ -168,7 +183,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         { onConflict: 'id' }
       )
       if (error) {
-        setErr(error.message || 'Greška pri čuvanju profila.')
+        setErr(humanizeSaveErrorMessage(error.message || 'Greška pri čuvanju profila.'))
         return
       }
 
@@ -190,7 +205,12 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
       notifyProfilUpdated()
       onDone()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Greška pri čuvanju')
+      if (e instanceof Error) {
+        console.warn('[OnboardingWizard] finish:', e.message)
+        setErr(humanizeSaveErrorMessage(e.message))
+      } else {
+        setErr('Greška pri čuvanju profila.')
+      }
     } finally {
       setSaving(false)
     }

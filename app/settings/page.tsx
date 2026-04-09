@@ -84,6 +84,21 @@ function formatRsd(n: number) {
   return new Intl.NumberFormat('sr-RS', { maximumFractionDigits: 0 }).format(n)
 }
 
+function humanizeSaveErrorMessage(msg: string): string {
+  const m = (msg || '').toLowerCase()
+  if (!m) return 'Čuvanje nije uspelo. Pokušaj ponovo.'
+  if (m.includes('failed to fetch') || m.includes('could not fetch')) {
+    return 'Čuvanje nije uspelo (mrežna greška). Proveri internet i pokušaj ponovo.'
+  }
+  if (m.includes('network') || m.includes('timeout')) {
+    return 'Čuvanje nije uspelo (problem sa mrežom). Pokušaj ponovo.'
+  }
+  if (m.includes('jwt') || m.includes('session') || m.includes('not authenticated')) {
+    return 'Sesija nije važeća. Osveži stranu i prijavi se ponovo.'
+  }
+  return msg
+}
+
 function notifyProfilUpdated() {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new CustomEvent('pausalac-profil-updated'))
@@ -302,7 +317,7 @@ export default function SettingsPage() {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      await supabase.from('profiles').upsert(
+      const { error } = await supabase.from('profiles').upsert(
         {
           id: user.id,
           company_data: profilZaCuvanje as unknown as Record<string, unknown>,
@@ -314,6 +329,11 @@ export default function SettingsPage() {
         },
         { onConflict: 'id' }
       )
+      if (error) {
+        console.warn('[SettingsPage] profiles.upsert:', error.message)
+        showToast(humanizeSaveErrorMessage(error.message), 'error')
+        return null
+      }
       setProfileMemory(user.id, profilZaCuvanje as unknown as Record<string, unknown>)
     }
 
