@@ -8,6 +8,7 @@ import {
 } from '@/lib/profile'
 import { setPlanMemory } from '@/lib/plan'
 import { loadOfflineProfile, saveOfflineProfile } from '@/lib/offline-data-cache'
+import { identityColumnsPayload, mergeCompanyWithIdentityColumns } from '@/lib/profile-identity-columns'
 
 const LEGACY_PLACANJA_KEY = 'pausalac_poresni_kalendar_placanja_v1'
 
@@ -35,6 +36,12 @@ type ProfileRow = {
   poresni_kalendar_placanja: Record<string, boolean> | null
   plan?: string | null
   pro_until?: string | null
+  pib?: string | null
+  firma_naziv?: string | null
+  sediste?: string | null
+  sifra_delatnosti?: string | null
+  obveznik?: string | null
+  sifra_poreskog_obveznika?: string | null
 }
 
 /**
@@ -44,7 +51,7 @@ type ProfileRow = {
  */
 export async function hydrateUserProfile(supabase: SupabaseClient, userId: string): Promise<boolean> {
   const selectCols =
-    'id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until'
+    'id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until, pib, firma_naziv, sediste, sifra_delatnosti, obveznik, sifra_poreskog_obveznika'
 
   let row: ProfileRow | null = null
   let error: { message: string } | null = null
@@ -135,6 +142,7 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
   if (emptyObj(company) && Object.keys(parsedLsProfil).length > 0) {
     company = parsedLsProfil
   }
+  company = mergeCompanyWithIdentityColumns(company, r)
 
   /** Migracija: legacy localStorage samo dopunjuje Supabase ako baza još nema true — ne prepisuje `onboarding_completed` sa false. */
   const onboardingMigrated = dbCompleted || lsOnboard
@@ -191,7 +199,7 @@ export async function hydrateUserProfile(supabase: SupabaseClient, userId: strin
     return onboardingMigrated
   }
 
-  company = (r?.company_data as Record<string, unknown>) ?? {}
+  company = mergeCompanyWithIdentityColumns((r?.company_data as Record<string, unknown>) ?? {}, r)
   poresni = (r?.poresni_kalendar_placanja as Record<string, boolean>) ?? {}
   setProfileMemory(userId, company)
   setOnboardingMemory(dbCompleted)
