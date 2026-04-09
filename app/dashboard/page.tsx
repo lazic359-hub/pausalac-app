@@ -29,6 +29,8 @@ const SmartInsightsLazy = dynamic(() => import('@/components/SmartInsights'), {
   loading: () => <AnalyticsPanelSkeleton />,
 })
 
+const LS_HIDE_RESENJE_BANNER = 'pausalac_hide_resenje_banner_v1'
+
 type Valuta = 'RSD' | 'EUR' | 'USD'
 
 type Faktura = {
@@ -201,12 +203,42 @@ function DashboardContent() {
   const [limitRsd, setLimitRsd] = useState(getKpoLimitRsdFromStorage)
   /** Poslednje učitavanje / offline keš */
   const [dataAsOf, setDataAsOf] = useState<string | null>(null)
+  const [showResenjeBanner, setShowResenjeBanner] = useState(false)
 
   useEffect(() => {
     const syncLimit = () => setLimitRsd(getKpoLimitRsdFromStorage())
     syncLimit()
-    window.addEventListener('pausalac-profil-updated', syncLimit)
-    return () => window.removeEventListener('pausalac-profil-updated', syncLimit)
+    const onProfilUpdated = () => {
+      syncLimit()
+      // Ako je Dashboard otvoren (npr. povratak iz Podešavanja), odmah osveži poreske iznose da banner nestane bez refresh-a.
+      if (!user) return
+      void supabase
+        .from('profiles')
+        .select('porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!data) return
+          setPoresniPodaci({
+            porez_na_prihod: data.porez_na_prihod,
+            pio_doprinos: data.pio_doprinos,
+            zdravstveno: data.zdravstveno,
+            nezaposleni: data.nezaposleni,
+          })
+        })
+    }
+    window.addEventListener('pausalac-profil-updated', onProfilUpdated)
+    return () => window.removeEventListener('pausalac-profil-updated', onProfilUpdated)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      const hidden = localStorage.getItem(LS_HIDE_RESENJE_BANNER) === '1'
+      setShowResenjeBanner(!hidden)
+    } catch {
+      setShowResenjeBanner(true)
+    }
   }, [])
 
   useEffect(() => {
@@ -720,6 +752,95 @@ function DashboardContent() {
           </p>
         )}
 
+        {!loading && tab === 'dashboard' && showResenjeBanner && ukupnoMesecnoObaveze === 0 && (
+          <div
+            role="status"
+            style={{
+              marginBottom: 12,
+              padding: '12px 14px',
+              borderRadius: 14,
+              background: 'var(--alert-info-bg)',
+              border: '1px solid var(--alert-info-border)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <p style={{ margin: '0 0 4px 0', color: 'var(--alert-info-text)', fontSize: 13, fontWeight: 800 }}>
+                Unesi iznose iz poreskog rešenja
+              </p>
+              <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 12, lineHeight: 1.45 }}>
+                Preskočio/la si ovaj korak u prvom ulasku. Bez toga, prikaz mesečnih obaveza i podsetnici neće biti tačni.
+              </p>
+              <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <a
+                  href="/settings#poresko"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'var(--accent)',
+                    color: '#000',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    textDecoration: 'none',
+                    border: 'none',
+                  }}
+                >
+                  Unesi iznose →
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPoresniResenjeModalOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'var(--bg-primary)',
+                    color: 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: 13,
+                    border: '1px solid var(--border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Šta je ovo?
+                </button>
+              </div>
+            </div>
+            <button
+              type="button"
+              aria-label="Sakrij"
+              onClick={() => {
+                setShowResenjeBanner(false)
+                try {
+                  localStorage.setItem(LS_HIDE_RESENJE_BANNER, '1')
+                } catch {
+                  /* ignore */
+                }
+              }}
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 12,
+                border: '1px solid var(--border)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {loading && tab === 'dashboard' && <DashboardMainSkeleton />}
         {loading && tab !== 'dashboard' && <DashboardTabListSkeleton rows={3} />}
 
@@ -836,7 +957,27 @@ function DashboardContent() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
                   <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>Ukupno mesečno (iz poreskog rešenja)</span>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: 15 }}>{ukupnoMesecnoObaveze.toLocaleString()} RSD</span>
+                    {ukupnoMesecnoObaveze > 0 ? (
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 800, fontSize: 15 }}>
+                        {ukupnoMesecnoObaveze.toLocaleString()} RSD
+                      </span>
+                    ) : (
+                      <a
+                        href="/settings#poresko"
+                        style={{
+                          color: 'var(--alert-warning-solid)',
+                          fontWeight: 900,
+                          fontSize: 13,
+                          textDecoration: 'none',
+                          border: '1px solid color-mix(in srgb, var(--alert-warning-solid) 25%, var(--border))',
+                          background: 'color-mix(in srgb, var(--alert-warning-solid) 10%, transparent)',
+                          padding: '6px 10px',
+                          borderRadius: 999,
+                        }}
+                      >
+                        Nije podešeno →
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => setPoresniResenjeModalOpen(true)}

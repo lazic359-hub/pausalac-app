@@ -8,6 +8,7 @@ import { BottomNav } from '@/components/BottomNav'
 import TestSamostalnosti from "@/components/TestSamostalnosti"
 import { getSupabaseBrowser, signOutIntentional } from '@/lib/supabase-browser'
 import { readProfilFromStorage, setProfileMemory } from '@/lib/profile'
+import { identityColumnsPayload, mergeCompanyWithIdentityColumns, type ProfileIdentityRow } from '@/lib/profile-identity-columns'
 import {
   BookOpen, Building2, ChevronRight, LayoutDashboard, FileSpreadsheet, Wallet, FileText, LogOut, Landmark,
 } from 'lucide-react'
@@ -19,6 +20,10 @@ const supabase = getSupabaseBrowser()
 type Profil = {
   nazivFirme: string; pib: string; maticniBroj: string
   sifraDelatnosti: string; godinaPrvePausalne: string
+  /** Ime i prezime poreskog obveznika (KPO zaglavlje) */
+  obveznik: string
+  /** Šifra poreskog obveznika (JIB/kod iz PUP) */
+  sifraPoreskogObveznika: string
   mesecniPorez: string; mesecniPio: string; mesecniZdravstvo: string
   mesecniNezaposlenost: string; brojRacuna: string; godisnjLimit: string
   iban: string; swift: string; sediste: string
@@ -32,6 +37,7 @@ type Profil = {
 
 const PRAZAN_PROFIL: Profil = {
   nazivFirme: '', pib: '', maticniBroj: '', sifraDelatnosti: '', godinaPrvePausalne: '',
+  obveznik: '', sifraPoreskogObveznika: '',
   mesecniPorez: '', mesecniPio: '', mesecniZdravstvo: '', mesecniNezaposlenost: '',
   brojRacuna: '', godisnjLimit: '6000000', iban: '', swift: '', sediste: '',
   datumRegistracije: '', pocetniPrihodRsd: '', pocetniPrihodGodina: '',
@@ -140,6 +146,21 @@ export default function SettingsPage() {
     ucitajPodatke()
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (ucitavanje) return
+    if (window.location.hash !== '#poresko') return
+    const el = document.getElementById('poresko-podaci')
+    if (!el) return
+    setTimeout(() => {
+      try {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      } catch {
+        el.scrollIntoView()
+      }
+    }, 50)
+  }, [ucitavanje])
+
   const ucitajPodatke = async () => {
     setUcitavanje(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -154,11 +175,16 @@ export default function SettingsPage() {
 
     const { data } = await supabase
       .from('profiles')
-      .select('company_data, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni')
+      .select(
+        'company_data, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, pib, firma_naziv, sediste, sifra_delatnosti, obveznik, sifra_poreskog_obveznika'
+      )
       .eq('id', user.id)
       .maybeSingle()
 
-    const fromDb = (data?.company_data as Partial<Profil> | null) ?? {}
+    const fromDbRaw = (data?.company_data as Partial<Profil> | null) ?? {}
+    const fromDb = data
+      ? mergeCompanyWithIdentityColumns(fromDbRaw as Record<string, unknown>, data as ProfileIdentityRow)
+      : (fromDbRaw as Record<string, unknown>)
     const fromMem = readProfilFromStorage() ?? {}
     const parsed: Profil = {
       ...PRAZAN_PROFIL,
@@ -238,13 +264,29 @@ export default function SettingsPage() {
     const mbDigits = profil.maticniBroj.replace(/\D/g, '')
     if (!profil.maticniBroj.trim()) nova.push('maticniBroj')
     else if (mbDigits.length !== 8) nova.push('mb_format')
-    if (!profil.mesecniPorez.trim()) nova.push('mesecniPorez')
-    if (!profil.mesecniPio.trim()) nova.push('mesecniPio')
-    if (!profil.mesecniZdravstvo.trim()) nova.push('mesecniZdravstvo')
-    if (profil.mesecniNezaposlenost.trim() === '') nova.push('mesecniNezaposlenost')
-    if (!profil.brojRacuna.trim()) nova.push('brojRacuna')
     const limitN = parseInt(String(profil.godisnjLimit).replace(/\s/g, ''), 10)
     if (!Number.isFinite(limitN) || limitN <= 0) nova.push('godisnjLimit')
+
+    // Poreski iznosi iz rešenja su opcioni (korisnik može da ih unese kasnije).
+    // Ako je korisnik uneo bilo koji iznos, zahtevaj da svi budu validni brojevi (≥0).
+    const anyPoreskiEntered = [
+      profil.mesecniPorez,
+      profil.mesecniPio,
+      profil.mesecniZdravstvo,
+      profil.mesecniNezaposlenost,
+    ].some(v => String(v).trim() !== '')
+    const isNonNegIntOrEmpty = (v: string) => {
+      const t = String(v).trim()
+      if (!t) return true
+      const n = parseInt(t.replace(/\s/g, ''), 10)
+      return Number.isFinite(n) && n >= 0
+    }
+    if (anyPoreskiEntered) {
+      if (!isNonNegIntOrEmpty(profil.mesecniPorez)) nova.push('mesecniPorez')
+      if (!isNonNegIntOrEmpty(profil.mesecniPio)) nova.push('mesecniPio')
+      if (!isNonNegIntOrEmpty(profil.mesecniZdravstvo)) nova.push('mesecniZdravstvo')
+      if (!isNonNegIntOrEmpty(profil.mesecniNezaposlenost)) nova.push('mesecniNezaposlenost')
+    }
     setGreske(nova)
     if (nova.length > 0) return null
 
@@ -268,6 +310,7 @@ export default function SettingsPage() {
           pio_doprinos: parseInt(profilZaCuvanje.mesecniPio) || 0,
           zdravstveno: parseInt(profilZaCuvanje.mesecniZdravstvo) || 0,
           nezaposleni: parseInt(profilZaCuvanje.mesecniNezaposlenost) || 0,
+          ...identityColumnsPayload(profilZaCuvanje as unknown as Record<string, unknown>),
         },
         { onConflict: 'id' }
       )
@@ -427,13 +470,19 @@ export default function SettingsPage() {
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>ŠIFRA DELATNOSTI</p>
           <Input value={profil.sifraDelatnosti || ''} onChange={set('sifraDelatnosti')} placeholder="npr. 62.01" style={{ marginBottom: 4 }} disabled={!editMode} />
 
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>OBVEZNIK (IME I PREZIME)</p>
+          <Input value={profil.obveznik || ''} onChange={set('obveznik')} placeholder="Kao u poreskom kartonu" style={{ marginBottom: 4 }} disabled={!editMode} />
+
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>ŠIFRA PORESKOG OBVEZNIKA</p>
+          <Input value={profil.sifraPoreskogObveznika || ''} onChange={set('sifraPoreskogObveznika')} placeholder="Kod iz Poreskog upravnika" style={{ marginBottom: 4 }} disabled={!editMode} />
+
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>GODINA PRVE PAUŠALNE GODINE</p>
           <Input type="number" value={profil.godinaPrvePausalne || ''} onChange={set('godinaPrvePausalne')} placeholder="npr. 2022" disabled={!editMode} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>Koristi se za računanje poreskog umanjenja</p>
 
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>DATUM REGISTRACIJE PREDUZETNIKA</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '12px 0 6px 0' }}>DATUM POČETKA PAUŠALNOG OPOREZIVANJA</p>
           <Input type="date" value={profil.datumRegistracije || ''} onChange={set('datumRegistracije')} disabled={!editMode} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>Kao u APR / poreskom kartonu — koristi se u pregledima i podsetnicima.</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>U praksi često piše u rešenju (početak važenja) — koristi se u pregledima i podsetnicima.</p>
 
           <div className="settings-grid-2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
             <div>
@@ -467,12 +516,20 @@ export default function SettingsPage() {
         </div>
 
         {/* Poreski podaci */}
-        <div style={kartica}>
+        <div id="poresko-podaci" style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#f59e0b', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>📋 PORESKI PODACI (IZ REŠENJA)</p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.5 }}>
             Fiksne mesečne akontacije i doprinosi — prepiši iz rešenja o utvrđivanju obaveze (Poresko upravstvo). Ažuriraj kad stigne novo rešenje.
           </p>
+          <div style={{
+            marginBottom: 12, padding: '10px 12px', borderRadius: 12,
+            background: 'var(--alert-info-bg)', border: '1px solid var(--alert-info-border)',
+          }}>
+            <p style={{ color: 'var(--alert-info-text)', fontSize: 12, fontWeight: 700, margin: 0 }}>
+              Opciono: možeš uneti kasnije (ali bez ovoga podsetnici i prikaz obaveza nisu tačni).
+            </p>
+          </div>
 
           <div style={{
             marginBottom: 18, padding: '14px 16px', borderRadius: 12,
@@ -515,7 +572,7 @@ export default function SettingsPage() {
                   <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>RSD</span>
                 </div>
                 {ima(field.key) && (
-                  <Greska tekst={field.key === 'mesecniNezaposlenost' ? 'Unesi iznos (0 ako nema obaveze)' : 'Obavezno polje'} />
+                  <Greska tekst="Unesi broj (0 ako nema obaveze)" />
                 )}
               </div>
             ))}
@@ -545,7 +602,6 @@ export default function SettingsPage() {
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>BROJ POSLOVNOG RAČUNA (DOMAĆI)</p>
           <Input value={profil.brojRacuna} onChange={set('brojRacuna')} placeholder="205-123456789012-53" hasError={ima('brojRacuna')} style={{ marginBottom: 4 }} disabled={!editMode} />
-          {ima('brojRacuna') && <Greska tekst="Obavezno polje" />}
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0 0' }}>Format: XXX-XXXXXXXXXXXXX-XX</p>
         </div>
 

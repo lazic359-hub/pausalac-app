@@ -68,7 +68,15 @@ export default function RegisterContent() {
     setError('')
     setInfo('')
     try {
-      const { data, error: err } = await supabase.auth.signUp({ email, password })
+      const { data, error: err } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            full_name: fullName.trim() || null,
+          },
+        },
+      })
       if (err) setError(formatSupabaseAuthError(err))
       else if (data.session) {
         router.replace('/dashboard')

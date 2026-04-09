@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import {
   readProfilFromStorage,
@@ -10,6 +10,7 @@ import {
   DEFAULT_GODISNJI_LIMIT_RSD,
 } from '@/lib/profile'
 import { loadOfflineProfile, saveOfflineProfile } from '@/lib/offline-data-cache'
+import { identityColumnsPayload } from '@/lib/profile-identity-columns'
 
 const supabase = getSupabaseBrowser()
 
@@ -42,28 +43,66 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const [err, setErr] = useState<string | null>(null)
 
   const [datumRegistracije, setDatumRegistracije] = useState('')
+  const [nazivFirme, setNazivFirme] = useState('')
+  const [pib, setPib] = useState('')
+  const [obveznik, setObveznik] = useState('')
+  const [sediste, setSediste] = useState('')
+  const [sifraDelatnosti, setSifraDelatnosti] = useState('')
+  const [sifraPoreskogObveznika, setSifraPoreskogObveznika] = useState('')
   const [mesecniPorez, setMesecniPorez] = useState('')
   const [mesecniPio, setMesecniPio] = useState('')
   const [mesecniZdravstvo, setMesecniZdravstvo] = useState('')
   const [mesecniNezaposlenost, setMesecniNezaposlenost] = useState('')
+  const [nemaResenje, setNemaResenje] = useState(false)
   const [imaPocetniPrihod, setImaPocetniPrihod] = useState(false)
   const [pocetniPrihodRsd, setPocetniPrihodRsd] = useState('')
 
   const tekucaGodina = new Date().getFullYear()
 
+  useEffect(() => {
+    const p = readProfilFromStorage()
+    if (!p) return
+    if (p.nazivFirme) setNazivFirme(String(p.nazivFirme))
+    if (p.pib) setPib(String(p.pib))
+    if (p.obveznik) setObveznik(String(p.obveznik))
+    if (p.sediste) setSediste(String(p.sediste))
+    if (p.sifraDelatnosti) setSifraDelatnosti(String(p.sifraDelatnosti))
+    if (p.sifraPoreskogObveznika) setSifraPoreskogObveznika(String(p.sifraPoreskogObveznika))
+  }, [])
+
+  useEffect(() => {
+    if (obveznik.trim()) return
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      const name = String((user?.user_metadata as any)?.full_name ?? '').trim()
+      if (name) setObveznik(name)
+    })
+  }, [obveznik])
+
+  useEffect(() => {
+    if (!nemaResenje) return
+    setMesecniPorez('')
+    setMesecniPio('')
+    setMesecniZdravstvo('')
+    setMesecniNezaposlenost('')
+  }, [nemaResenje])
+
   const step1Ok = useMemo(() => {
     if (!datumRegistracije.trim()) return false
     const t = Date.parse(datumRegistracije)
-    return Number.isFinite(t)
-  }, [datumRegistracije])
+    if (!Number.isFinite(t)) return false
+    const pibDigits = pib.replace(/\D/g, '')
+    if (pibDigits.length > 0 && pibDigits.length !== 9) return false
+    return true
+  }, [datumRegistracije, pib])
 
   const step2Ok = useMemo(() => {
+    if (nemaResenje) return true
     const n = (s: string) => {
       const x = parseInt(String(s).replace(/\s/g, ''), 10)
       return Number.isFinite(x) && x >= 0
     }
     return n(mesecniPorez) && n(mesecniPio) && n(mesecniZdravstvo) && n(mesecniNezaposlenost)
-  }, [mesecniPorez, mesecniPio, mesecniZdravstvo, mesecniNezaposlenost])
+  }, [nemaResenje, mesecniPorez, mesecniPio, mesecniZdravstvo, mesecniNezaposlenost])
 
   const step3Ok = useMemo(() => {
     if (!imaPocetniPrihod) return true
@@ -94,10 +133,10 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
       const merged = {
         ...existing,
         datumRegistracije,
-        mesecniPorez,
-        mesecniPio,
-        mesecniZdravstvo,
-        mesecniNezaposlenost,
+        mesecniPorez: nemaResenje ? '' : mesecniPorez,
+        mesecniPio: nemaResenje ? '' : mesecniPio,
+        mesecniZdravstvo: nemaResenje ? '' : mesecniZdravstvo,
+        mesecniNezaposlenost: nemaResenje ? '' : mesecniNezaposlenost,
         godisnjLimit: String(
           typeof existing.godisnjLimit === 'string' && existing.godisnjLimit.trim()
             ? existing.godisnjLimit
@@ -110,16 +149,21 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
       const registration_date =
         Number.isFinite(regParsed) ? new Date(regParsed).toISOString().slice(0, 10) : null
       const toInt = (s: string) => parseInt(String(s).replace(/\s/g, ''), 10) || 0
+      const porez = nemaResenje ? 0 : toInt(mesecniPorez)
+      const pio = nemaResenje ? 0 : toInt(mesecniPio)
+      const zdr = nemaResenje ? 0 : toInt(mesecniZdravstvo)
+      const nez = nemaResenje ? 0 : toInt(mesecniNezaposlenost)
       const { error } = await supabase.from('profiles').upsert(
         {
           id: uid,
           company_data: merged,
           onboarding_completed: true,
           registration_date,
-          porez_na_prihod: toInt(mesecniPorez),
-          pio_doprinos: toInt(mesecniPio),
-          zdravstveno: toInt(mesecniZdravstvo),
-          nezaposleni: toInt(mesecniNezaposlenost),
+          porez_na_prihod: porez,
+          pio_doprinos: pio,
+          zdravstveno: zdr,
+          nezaposleni: nez,
+          ...identityColumnsPayload(merged as Record<string, unknown>),
         },
         { onConflict: 'id' }
       )
@@ -136,10 +180,10 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         company: merged as Record<string, unknown>,
         onboarding_completed: true,
         poresni_kalendar_placanja: offlineSnap?.data.poresni_kalendar_placanja ?? {},
-        porez_na_prihod: toInt(mesecniPorez),
-        pio_doprinos: toInt(mesecniPio),
-        zdravstveno: toInt(mesecniZdravstvo),
-        nezaposleni: toInt(mesecniNezaposlenost),
+        porez_na_prihod: porez,
+        pio_doprinos: pio,
+        zdravstveno: zdr,
+        nezaposleni: nez,
         plan: offlineSnap?.data.plan ?? 'free',
         pro_until: offlineSnap?.data.pro_until ?? null,
       })
@@ -155,11 +199,11 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
   const goNext = () => {
     setErr(null)
     if (step === 1 && !step1Ok) {
-      setErr('Izaberi datum registracije preduzetnika.')
+      setErr('Unesi datum početka paušala. PIB je opcioni (ako ga uneseš, mora imati 9 cifara).')
       return
     }
     if (step === 2 && !step2Ok) {
-      setErr('Unesi sve iznose iz rešenja (brojevi ≥ 0).')
+      setErr('Unesi sve iznose iz rešenja (brojevi ≥ 0) ili preskoči ovaj korak.')
       return
     }
     if (step === 3) {
@@ -242,10 +286,10 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         {step === 1 && (
           <div>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.55, margin: '0 0 16px 0' }}>
-              Datum kada si registrovao preduzetničku delatnost (upis u APR / početak obavljanja).
+              Podaci za KPO i službene evidencije (isti kao u poreskom kartonu / APR).
             </p>
             <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
-              Datum registracije
+              Datum početka paušalnog oporezivanja
             </label>
             <input
               type="date"
@@ -253,7 +297,89 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
               onChange={e => setDatumRegistracije(e.target.value)}
               onFocus={() => setFocused('d')}
               onBlur={() => setFocused(null)}
-              style={inpStyle(focused === 'd')}
+              style={{ ...inpStyle(focused === 'd'), marginBottom: 14 }}
+            />
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '-6px 0 14px 0', lineHeight: 1.45 }}>
+              Ako nisi siguran, uzmi datum sa rešenja (početak važenja) — ne mora da bude isti kao datum osnivanja u APR.
+            </p>
+
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
+              PIB (9 cifara)
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={pib}
+              onChange={e => setPib(e.target.value)}
+              onFocus={() => setFocused('pib')}
+              onBlur={() => setFocused(null)}
+              placeholder="123456789"
+              style={{ ...inpStyle(focused === 'pib'), marginBottom: 14 }}
+            />
+
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
+              Obveznik (ime i prezime)
+            </label>
+            <input
+              type="text"
+              value={obveznik}
+              onChange={e => setObveznik(e.target.value)}
+              onFocus={() => setFocused('obv')}
+              onBlur={() => setFocused(null)}
+              placeholder="npr. Marko Marković"
+              style={{ ...inpStyle(focused === 'obv'), marginBottom: 14 }}
+            />
+
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
+              Firma / radnja (naziv)
+            </label>
+            <input
+              type="text"
+              value={nazivFirme}
+              onChange={e => setNazivFirme(e.target.value)}
+              onFocus={() => setFocused('nz')}
+              onBlur={() => setFocused(null)}
+              placeholder="npr. Marko Marković PR Beograd"
+              style={{ ...inpStyle(focused === 'nz'), marginBottom: 14 }}
+            />
+
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
+              Sedište
+            </label>
+            <input
+              type="text"
+              value={sediste}
+              onChange={e => setSediste(e.target.value)}
+              onFocus={() => setFocused('sed')}
+              onBlur={() => setFocused(null)}
+              placeholder="npr. Beograd, Ulica br. 1"
+              style={{ ...inpStyle(focused === 'sed'), marginBottom: 14 }}
+            />
+
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
+              Šifra delatnosti
+            </label>
+            <input
+              type="text"
+              value={sifraDelatnosti}
+              onChange={e => setSifraDelatnosti(e.target.value)}
+              onFocus={() => setFocused('sd')}
+              onBlur={() => setFocused(null)}
+              placeholder="npr. 62.01"
+              style={{ ...inpStyle(focused === 'sd'), marginBottom: 14 }}
+            />
+
+            <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
+              Šifra poreskog obveznika
+            </label>
+            <input
+              type="text"
+              value={sifraPoreskogObveznika}
+              onChange={e => setSifraPoreskogObveznika(e.target.value)}
+              onFocus={() => setFocused('spo')}
+              onBlur={() => setFocused(null)}
+              placeholder="Kod iz Poreskog upravnika"
+              style={inpStyle(focused === 'spo')}
             />
           </div>
         )}
@@ -261,8 +387,17 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         {step === 2 && (
           <div>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.55, margin: '0 0 16px 0' }}>
-              Mesečni iznosi iz rešenja Poreskog upravnika (akontacije i doprinosi).
+              Mesečni iznosi iz rešenja Poreskog upravnika (akontacije i doprinosi). Ako nemaš rešenje pri ruci, možeš preskočiti i uneti kasnije u Podešavanjima.
             </p>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={nemaResenje}
+                onChange={e => setNemaResenje(e.target.checked)}
+                style={{ width: 18, height: 18, accentColor: 'var(--accent)' }}
+              />
+              <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>Nemam rešenje pri ruci (unesiću kasnije)</span>
+            </label>
             {([
               { k: 'porez', label: 'Porez na prihod', v: mesecniPorez, set: setMesecniPorez },
               { k: 'pio', label: 'PIO doprinos', v: mesecniPio, set: setMesecniPio },
@@ -283,6 +418,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                     onChange={e => f.set(e.target.value)}
                     onFocus={() => setFocused(f.k)}
                     onBlur={() => setFocused(null)}
+                    disabled={nemaResenje}
                     style={{ ...inpStyle(focused === f.k), paddingRight: 48 }}
                   />
                   <span style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, pointerEvents: 'none' }}>
@@ -291,13 +427,28 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
                 </div>
               </div>
             ))}
+            {nemaResenje && (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '12px 14px',
+                  borderRadius: 12,
+                  background: 'var(--alert-info-bg)',
+                  border: '1px solid var(--alert-info-border)',
+                }}
+              >
+                <p style={{ margin: 0, color: 'var(--alert-info-text)', fontSize: 12, fontWeight: 700 }}>
+                  Možeš kasnije uneti iznose u Podešavanjima profila.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
         {step === 3 && (
           <div>
             <p style={{ color: 'var(--text-muted)', fontSize: 13, lineHeight: 1.55, margin: '0 0 16px 0' }}>
-              Ako si već ostvario prihod u {tekucaGodina}. godini pre nego što koristiš aplikaciju, unesi taj iznos da bi limit i KPO bili tačni.
+              Ako si već ostvario prihod u {tekucaGodina}. godini pre nego što koristiš aplikaciju, unesi zbir da bi limit i KPO bili tačni.
             </p>
             <label style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, cursor: 'pointer' }}>
               <input
@@ -311,7 +462,7 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
             {imaPocetniPrihod && (
               <>
                 <label style={{ display: 'block', color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 0', fontWeight: 600 }}>
-                  Prihod pre aplikacije ({tekucaGodina}.)
+                  Ukupno prihoda od 1.1. ({tekucaGodina}.)
                 </label>
                 <div style={{ position: 'relative' }}>
                   <input
