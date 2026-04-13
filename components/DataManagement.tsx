@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Download, Upload, Trash2, ShieldCheck, AlertTriangle, CheckCircle } from 'lucide-react'
+import { Download, Upload, Trash2, ShieldCheck, AlertTriangle, CheckCircle, Lock } from 'lucide-react'
 
 /** Legacy lokalni ključevi (pre migracije u Supabase). Glavni podaci su na nalogu u bazi. */
 const STORAGE_KEYS = [
@@ -127,7 +127,7 @@ export default function DataManagement() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, margin: '40px 0 28px 0' }}>
         <div style={{ flex: 1, height: 1, background: 'linear-gradient(90deg, transparent, var(--border))' }} />
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14 }}>🔒</span>
+          <Lock size={14} strokeWidth={2} aria-hidden />
           <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 700, letterSpacing: '2px', textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
             Sigurnost i rezervna kopija
           </span>
@@ -167,7 +167,16 @@ export default function DataManagement() {
 
         <ActionBtn
           icon={<Trash2 size={17} />}
-          label={confirmDelete ? '⚠️ Klikni ponovo da POTVRDIŠ brisanje' : 'Obriši sve podatke'}
+          label={
+            confirmDelete ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={15} strokeWidth={2} aria-hidden />
+                Klikni ponovo da POTVRDIŠ brisanje
+              </span>
+            ) : (
+              'Obriši sve podatke'
+            )
+          }
           sublabel={confirmDelete ? 'Ovo će trajno obrisati sve fakture, KPO i profil firme!' : 'Korisno ako koristiš tuđi računar · Traži potvrdu'}
           accent={confirmDelete ? '#ff3333' : '#ff5555'}
           danger
@@ -184,7 +193,7 @@ function ActionBtn({
   icon, label, sublabel, accent, danger = false, confirmed = false, onClick
 }: {
   icon: React.ReactNode
-  label: string
+  label: React.ReactNode
   sublabel: string
   accent: string
   danger?: boolean

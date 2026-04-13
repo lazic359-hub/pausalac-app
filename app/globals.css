@@ -709,6 +709,16 @@ body.install-app-banner-visible {
     0 0 0 5px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
+@keyframes pdf-dugme-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pdf-dugme-spinner {
+  flex-shrink: 0;
+  animation: pdf-dugme-spin 0.9s linear infinite;
+}
+
 /* ── Alert (info / warning / danger) ── */
 .alert {
   border-radius: 8px;
@@ -832,8 +842,11 @@ body.install-app-banner-visible {
   min-width: 0;
 }
 .kpo-title-emoji {
-  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
+  color: var(--accent);
   filter: drop-shadow(0 3px 10px color-mix(in srgb, var(--accent) 45%, transparent));
 }
 .kpo-title-text {

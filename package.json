@@ -38,5 +38,9 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "workbox-build": "7.4.0",
+    "sourcemap-codec": "npm:@jridgewell/sourcemap-codec@1.5.5"
   }
 }

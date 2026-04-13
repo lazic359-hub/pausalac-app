@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle, Scale } from "lucide-react";
 
 type PrihodZaGrafikon = {
   datum: string;
@@ -59,7 +60,10 @@ export default function TestSamostalnosti({ prihodiTekucaGodina }: { prihodiTeku
     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div style={{ minWidth: 240 }}>
-          <p style={labelStyle}>⚖️ TEST SAMOSTALNOSTI</p>
+          <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+            <Scale size={14} strokeWidth={2} aria-hidden />
+            TEST SAMOSTALNOSTI
+          </p>
           <p style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", margin: "0 0 4px 0" }}>Proveri rizik</p>
           {clientShare?.over70 && (
             <p style={{ fontSize: 12, color: "#ff6b6b", margin: "4px 0 0 0", fontWeight: 600 }}>
@@ -67,8 +71,9 @@ export default function TestSamostalnosti({ prihodiTekucaGodina }: { prihodiTeku
             </p>
           )}
           {answered > 0 && (
-            <p style={{ fontSize: 12, color: rizican ? "#ff6b6b" : ACCENT, margin: 0, fontWeight: 700 }}>
-              {rizican ? `⚠️ Visok rizik (${daCount}/9)` : `✓ Nizak rizik (${daCount}/9)`}
+            <p style={{ fontSize: 12, color: rizican ? "#ff6b6b" : ACCENT, margin: 0, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+              {rizican ? <AlertTriangle size={14} strokeWidth={2} aria-hidden /> : <CheckCircle size={14} strokeWidth={2} aria-hidden />}
+              {rizican ? `Visok rizik (${daCount}/9)` : `Nizak rizik (${daCount}/9)`}
             </p>
           )}
         </div>
@@ -108,8 +113,9 @@ export default function TestSamostalnosti({ prihodiTekucaGodina }: { prihodiTeku
                 })}
               </div>
               {odgovori[i] === true && (
-                <p style={{ color: "#ff6b6b", fontSize: 12, margin: 0, lineHeight: 1.5 }}>
-                  ⚠️ {p.objasnjenje}
+                <p style={{ color: "#ff6b6b", fontSize: 12, margin: 0, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 6 }}>
+                  <AlertTriangle size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden />
+                  <span>{p.objasnjenje}</span>
                 </p>
               )}
             </div>
@@ -122,8 +128,8 @@ export default function TestSamostalnosti({ prihodiTekucaGodina }: { prihodiTeku
               color: rizican ? "#ff6b6b" : ACCENT,
             }}>
               {rizican
-                ? `⚠️ Visok rizik! ${daCount}/9 faktora ukazuju na prikriveni radni odnos. Konsultuj pravnog savetnika.`
-                : `✓ Nizak rizik. Tvoja poslovna samostalnost izgleda dobro.`}
+                ? `Visok rizik! ${daCount}/9 faktora ukazuju na prikriveni radni odnos. Konsultuj pravnog savetnika.`
+                : `Nizak rizik. Tvoja poslovna samostalnost izgleda dobro.`}
             </div>
           )}
         </div>

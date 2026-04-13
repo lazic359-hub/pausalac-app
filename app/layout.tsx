@@ -8,6 +8,16 @@ export const metadata: Metadata = {
     'Paušo — pratite prihode, rokove i poreze kao paušalac u Srbiji. Džepni knjigovođa za paušalce.',
   applicationName: 'Paušo',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/api/app-icon?size=16', sizes: '16x16', type: 'image/png' },
+      { url: '/api/app-icon?size=32', sizes: '32x32', type: 'image/png' },
+      { url: '/api/app-icon?size=192', sizes: '192x192', type: 'image/png' },
+      { url: '/api/app-icon?size=512', sizes: '512x512', type: 'image/png' },
+    ],
+    shortcut: [{ url: '/api/app-icon?size=192', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/api/app-icon?size=180', sizes: '180x180', type: 'image/png' }],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -32,7 +42,6 @@ export default function RootLayout({
     <html lang="sr" suppressHydrationWarning>
       <head>
         <link rel="manifest" href="/manifest.json" />
-        <link rel="apple-touch-icon" href="/icon-192.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

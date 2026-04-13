@@ -8,7 +8,12 @@ import {
 } from '@/lib/profile'
 import { setPlanMemory } from '@/lib/plan'
 import { loadOfflineProfile, saveOfflineProfile } from '@/lib/offline-data-cache'
-import { identityColumnsPayload, mergeCompanyWithIdentityColumns } from '@/lib/profile-identity-columns'
+import {
+  identityColumnsPayload,
+  isProfilesMissingColumnError,
+  mergeCompanyWithIdentityColumns,
+  PROFILES_KPO_COLUMN_NAMES,
+} from '@/lib/profile-identity-columns'
 
 const LEGACY_PLACANJA_KEY = 'pausalac_poresni_kalendar_placanja_v1'
 
@@ -50,13 +55,21 @@ type ProfileRow = {
  * Vraća da li je onboarding završen prema bazi (posle eventualne migracije u istom pozivu).
  */
 export async function hydrateUserProfile(supabase: SupabaseClient, userId: string): Promise<boolean> {
-  const selectCols =
-    'id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until, pib, firma_naziv, sediste, sifra_delatnosti, obveznik, sifra_poreskog_obveznika'
+  const selectColsFull = `id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until, ${PROFILES_KPO_COLUMN_NAMES}`
+  const selectColsLegacy =
+    'id, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, company_data, onboarding_completed, poresni_kalendar_placanja, plan, pro_until'
 
   let row: ProfileRow | null = null
   let error: { message: string } | null = null
+  const fetchRow = async () => {
+    let res = await supabase.from('profiles').select(selectColsFull).eq('id', userId).maybeSingle()
+    if (res.error && isProfilesMissingColumnError(res.error.message)) {
+      res = await supabase.from('profiles').select(selectColsLegacy).eq('id', userId).maybeSingle()
+    }
+    return res
+  }
   for (let attempt = 0; attempt < 3; attempt++) {
-    const res = await supabase.from('profiles').select(selectCols).eq('id', userId).maybeSingle()
+    const res = await fetchRow()
     error = res.error
     row = (res.data as ProfileRow | null) ?? null
     if (error) break

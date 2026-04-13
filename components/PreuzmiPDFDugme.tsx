@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useMemo, useState } from 'react'
+import { FileText, Loader2 } from 'lucide-react'
 
 type Stavka = { opis: string; iznos: string }
 type Props = {
@@ -21,18 +22,7 @@ type Props = {
 }
 
 function PdfIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <path
-        d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
+  return <FileText size={16} strokeWidth={2} aria-hidden />
 }
 
 export default function PreuzmiPDFDugme({ brojFakture, datum, datumValute, izdavalac, klijent, stavke, napomena, valuta, kurs, legalNotes, style, label, variant = 'default' }: Props) {
@@ -109,7 +99,8 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, datumValute, izdav
           {({ loading }: { loading: boolean }) =>
             loading ? (
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                <span className="pdf-dugme-spinner" aria-hidden>⏳</span> Priprema…
+                <Loader2 className="pdf-dugme-spinner" size={16} strokeWidth={2} aria-hidden />
+                Priprema…
               </span>
             ) : compact ? (
               <>
@@ -117,7 +108,7 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, datumValute, izdav
                 <span>{label ?? 'PDF'}</span>
               </>
             ) : (
-              (label || '📄 Preuzmi PDF')
+              (label || 'Preuzmi PDF')
             )}
         </PDFDownloadLink>
       )
@@ -153,7 +144,10 @@ export default function PreuzmiPDFDugme({ brojFakture, datum, datumValute, izdav
             <span>…</span>
           </>
         ) : (
-          '⏳ Priprema PDF...'
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <Loader2 className="pdf-dugme-spinner" size={16} strokeWidth={2} aria-hidden />
+            Priprema PDF…
+          </span>
         )}
       </button>
     )

@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 
 type ListEmptyStateProps = {
-  icon: string
+  icon: ReactNode
   headline: string
   subtext: string
   children: ReactNode
@@ -23,7 +23,16 @@ export function ListEmptyState({ icon, headline, subtext, children }: ListEmptyS
         boxSizing: 'border-box',
       }}
     >
-      <div style={{ fontSize: 48, lineHeight: 1, marginBottom: 16 }} aria-hidden>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 16,
+          color: 'var(--accent)',
+        }}
+        aria-hidden
+      >
         {icon}
       </div>
       <h2 style={{ fontSize: 20, fontWeight: 800, margin: '0 0 10px 0', color: '#fff' }}>

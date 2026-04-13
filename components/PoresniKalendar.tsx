@@ -4,7 +4,7 @@ import { Alert } from "@/components/Alert";
 import { getSupabaseBrowser } from "@/lib/supabase-browser";
 import { useState, useEffect, useRef } from "react";
 import {
-  Calendar, CheckCircle, AlertTriangle, Clock, FileText, ChevronRight,
+  Calendar, Check, CheckCircle, AlertTriangle, Clock, FileText, ChevronRight,
 } from "lucide-react";
 import { getTaxDeadlineForMonth, isPastDeadlineForCurrentMonth } from "@/lib/tax-deadline";
 
@@ -90,7 +90,12 @@ function RokCard({ rok, placeno, onOznaciPlaceno }: { rok: Rok; placeno: boolean
             <CheckCircle size={12} /> Označi kao plaćeno
           </button>
         )}
-        {status==="placeno" && <span style={{ color:"var(--accent)", fontSize:"12px", fontWeight:600 }}>✓ Mirni ste do 15. sledećeg meseca!</span>}
+        {status==="placeno" && (
+          <span style={{ display:"inline-flex", alignItems:"center", gap:6, color:"var(--accent)", fontSize:"12px", fontWeight:600 }}>
+            <Check size={14} strokeWidth={2.5} aria-hidden />
+            Mirni ste do 15. sledećeg meseca!
+          </span>
+        )}
       </div>
     </div>
   );

@@ -6,6 +6,8 @@ import { readProfilFromStorage } from '@/lib/profile'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useRouter } from 'next/navigation'
 import { getNbsToRsdRateMeta } from '@/lib/exchange-rate'
+import { AlertTriangle, Globe2, Lightbulb, Receipt } from 'lucide-react'
+
 const PreuzmiPDFDugme = dynamic(() => import('../../components/PreuzmiPDFDugme'), { ssr: false })
 
 const supabase = getSupabaseBrowser()
@@ -67,12 +69,17 @@ function Input({ value, onChange, onFocus, onBlur, placeholder, type = 'text', h
 }
 
 function Greska({ tekst }: { tekst: string }) {
-  return <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
+  return (
+    <p style={{ color: '#ff4d4d', fontSize: 11, margin: '4px 0 8px 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+      <AlertTriangle size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
+      <span>{tekst}</span>
+    </p>
+  )
 }
 
 function ValutaPicker({ valuta, onChange }: { valuta: Valuta; onChange: (v: Valuta) => void }) {
   const boje: Record<Valuta, string> = { RSD: '#00C896', EUR: '#3b82f6', USD: '#f59e0b' }
-  const oznake: Record<Valuta, string> = { RSD: '🇷🇸 RSD', EUR: '🇪🇺 EUR', USD: '🇺🇸 USD' }
+  const oznake: Record<Valuta, string> = { RSD: 'RSD', EUR: 'EUR', USD: 'USD' }
   return (
     <div style={{ display: 'flex', gap: 8 }}>
       {(['RSD', 'EUR', 'USD'] as Valuta[]).map(v => {
@@ -135,9 +142,9 @@ export default function FakturaPage() {
   }
 
   const LEGAL_OPTIONS = [
-    { value: 'domaci', label: '🇷🇸 Domaći klijent' },
-    { value: 'inostrani', label: '🌍 Inostrani klijent (član 12 st. 4)' },
-    { value: 'usluge', label: '📋 Usluge (oslobođeno PDV-a)' },
+    { value: 'domaci', label: 'Domaći klijent' },
+    { value: 'inostrani', label: 'Inostrani klijent (član 12 st. 4)' },
+    { value: 'usluge', label: 'Usluge (oslobođeno PDV-a)' },
   ]
 
   const LEGAL_TEXTS: Record<string, string> = {
@@ -308,12 +315,13 @@ export default function FakturaPage() {
           onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
           onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
         >←</button>
-        <span style={{ fontSize: 18 }}>🧾</span>
+        <Receipt size={18} strokeWidth={2} color="var(--accent)" aria-hidden />
         <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Nova faktura</span>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           {inostranstvo && (
-            <span style={{ background: valutaBoja + '15', border: `1px solid ${valutaBoja}40`, color: valutaBoja, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20 }}>
-              🌍 Devizna faktura
+            <span style={{ background: valutaBoja + '15', border: `1px solid ${valutaBoja}40`, color: valutaBoja, fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <Globe2 size={14} strokeWidth={2} aria-hidden />
+              Devizna faktura
             </span>
           )}
           <ThemeToggle />
@@ -324,9 +332,12 @@ export default function FakturaPage() {
 
         {!profil && (
           <div style={{ background: '#2a1a00', border: '1px solid #f59e0b40', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
-            <p style={{ color: '#f59e0b', fontSize: 13, margin: 0 }}>
-              ⚠️ Nisi podesio profil firme.{' '}
-              <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Idi na Podešavanja →</a>
+            <p style={{ color: '#f59e0b', fontSize: 13, margin: 0, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <AlertTriangle size={16} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
+              <span>
+                Nisi podesio profil firme.{' '}
+                <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Idi na Podešavanja →</a>
+              </span>
             </p>
           </div>
         )}
@@ -629,10 +640,13 @@ export default function FakturaPage() {
         {/* Upozorenje za IBAN */}
         {inostranstvo && profil && !profil.iban && (
           <div style={{ background: '#1a1500', border: '1px solid #f59e0b25', borderRadius: 12, padding: '12px 16px', marginBottom: 16 }}>
-            <p style={{ color: '#7a6020', fontSize: 13, margin: 0 }}>
-              💡 Dodaj IBAN i SWIFT u{' '}
-              <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Podešavanjima</a>
-              {' '}za prikaz na PDF-u.
+            <p style={{ color: '#7a6020', fontSize: 13, margin: 0, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <Lightbulb size={16} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
+              <span>
+                Dodaj IBAN i SWIFT u{' '}
+                <a href="/settings" style={{ color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Podešavanjima</a>
+                {' '}za prikaz na PDF-u.
+              </span>
             </p>
           </div>
         )}

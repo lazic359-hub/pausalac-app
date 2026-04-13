@@ -3,6 +3,19 @@ import { useState, useEffect } from 'react'
 import { getSupabaseBrowser } from '@/lib/supabase-browser'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useRouter } from 'next/navigation'
+import type { LucideIcon } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle,
+  ClipboardList,
+  Home,
+  Laptop,
+  Package,
+  Paperclip,
+  Plus,
+  TrendingDown,
+  Wrench,
+} from 'lucide-react'
 
 const supabase = getSupabaseBrowser()
 
@@ -18,12 +31,12 @@ type Rashod = {
   broj_racuna: string
 }
 
-const KATEGORIJE: { key: Kategorija; label: string; boja: string; ikona: string }[] = [
-  { key: 'oprema',  label: 'Oprema',  boja: '#3b82f6', ikona: '💻' },
-  { key: 'softver', label: 'Softver', boja: '#a855f7', ikona: '📦' },
-  { key: 'zakup',   label: 'Zakup',   boja: '#f59e0b', ikona: '🏠' },
-  { key: 'usluge',  label: 'Usluge',  boja: '#00C896', ikona: '🔧' },
-  { key: 'ostalo',  label: 'Ostalo',  boja: '#6b7280', ikona: '📎' },
+const KATEGORIJE: { key: Kategorija; label: string; boja: string; Ikona: LucideIcon }[] = [
+  { key: 'oprema', label: 'Oprema', boja: '#3b82f6', Ikona: Laptop },
+  { key: 'softver', label: 'Softver', boja: '#a855f7', Ikona: Package },
+  { key: 'zakup', label: 'Zakup', boja: '#f59e0b', Ikona: Home },
+  { key: 'usluge', label: 'Usluge', boja: '#00C896', Ikona: Wrench },
+  { key: 'ostalo', label: 'Ostalo', boja: '#6b7280', Ikona: Paperclip },
 ]
 
 const KVARTALI = {
@@ -157,7 +170,7 @@ export default function RashodiPage() {
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => window.history.back()} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer' }}>←</button>
-          <span style={{ fontSize: 18 }}>💸</span>
+          <TrendingDown size={18} strokeWidth={2} color="#ff6b6b" aria-hidden />
           <span style={{ fontWeight: 700, fontSize: 18, color: '#ff6b6b' }}>Rashodi</span>
         </div>
         <ThemeToggle />
@@ -183,15 +196,18 @@ export default function RashodiPage() {
         {poKategoriji.length > 0 && (
           <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, marginBottom: 16 }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 14px 0' }}>PO KATEGORIJAMA</p>
-            {poKategoriji.map(k => (
+            {poKategoriji.map(k => {
+              const Icon = k.Ikona
+              return (
               <div key={k.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 16 }}>{k.ikona}</span>
+                  <Icon size={16} strokeWidth={2} style={{ color: k.boja }} aria-hidden />
                   <span style={{ color: 'var(--text-primary)', fontSize: 14 }}>{k.label}</span>
                 </div>
                 <span style={{ color: k.boja, fontWeight: 700, fontSize: 14 }}>{formatIznos(k.iznos)} RSD</span>
               </div>
-            ))}
+              )
+            })}
           </div>
         )}
 
@@ -206,7 +222,17 @@ export default function RashodiPage() {
               border: `1px solid ${tab === t ? '#ff6b6b' : 'var(--border)'}`,
               cursor: 'pointer',
             }}>
-              {t === 'lista' ? '📋 Lista rashoda' : '➕ Dodaj rashod'}
+              {t === 'lista' ? (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <ClipboardList size={16} strokeWidth={2} aria-hidden />
+                  Lista rashoda
+                </span>
+              ) : (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <Plus size={16} strokeWidth={2} aria-hidden />
+                  Dodaj rashod
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -226,7 +252,9 @@ export default function RashodiPage() {
 
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 10px 0' }}>KATEGORIJA</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
-              {KATEGORIJE.map(k => (
+              {KATEGORIJE.map(k => {
+                const Icon = k.Ikona
+                return (
                 <button key={k.key} onClick={() => setForma({ ...forma, kategorija: k.key })}
                   style={{
                     background: forma.kategorija === k.key ? k.boja + '22' : 'var(--bg-primary)',
@@ -234,14 +262,27 @@ export default function RashodiPage() {
                     color: forma.kategorija === k.key ? k.boja : 'var(--text-muted)',
                     borderRadius: 10, padding: '8px 14px', fontSize: 13,
                     fontWeight: forma.kategorija === k.key ? 700 : 400, cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
                   }}>
-                  {k.ikona} {k.label}
+                  <Icon size={14} strokeWidth={2} aria-hidden />
+                  {k.label}
                 </button>
-              ))}
+                )
+              })}
             </div>
 
-            {greska && <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0' }}>⚠️ {greska}</p>}
-            {uspeh && <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0' }}>✅ Rashod dodat!</p>}
+            {greska && (
+              <p style={{ color: '#ff6b6b', fontSize: 13, margin: '0 0 12px 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <AlertTriangle size={16} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
+                <span>{greska}</span>
+              </p>
+            )}
+            {uspeh && (
+              <p style={{ color: 'var(--accent)', fontSize: 13, margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <CheckCircle size={16} strokeWidth={2} aria-hidden />
+                Rashod dodat!
+              </p>
+            )}
 
             <button onClick={dodaj} style={{
               width: '100%', background: '#ff6b6b', color: '#fff',
@@ -289,7 +330,9 @@ export default function RashodiPage() {
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>Učitavanje...</div>
             ) : filtrirani.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-                <p style={{ fontSize: 40 }}>💸</p>
+                <p style={{ margin: '0 0 8px 0', color: 'var(--text-muted)' }}>
+                  <TrendingDown size={40} strokeWidth={2} aria-hidden />
+                </p>
                 <p>Nema rashoda {filter !== 'sve' ? `za ${filter}` : `za ${selectedGodina}.`}</p>
                 <button onClick={() => setTab('dodaj')} style={{
                   marginTop: 12, background: '#ff6b6b', color: '#fff',
@@ -308,6 +351,7 @@ export default function RashodiPage() {
 
                 {filtrirani.map(r => {
                   const kat = KATEGORIJE.find(k => k.key === r.kategorija)
+                  const KatIcon = kat?.Ikona
                   return (
                     <div key={r.id}>
                       {brisanje === r.id ? (
@@ -323,7 +367,10 @@ export default function RashodiPage() {
                           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: 0 }}>{formatDatum(r.datum)}</p>
                           <div>
                             <p style={{ color: 'var(--text-primary)', fontSize: 13, fontWeight: 600, margin: '0 0 2px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.opis}</p>
-                            <p style={{ color: kat?.boja || 'var(--text-muted)', fontSize: 11, margin: 0 }}>{kat?.ikona} {kat?.label}{r.broj_racuna ? ` · ${r.broj_racuna}` : ''}</p>
+                            <p style={{ color: kat?.boja || 'var(--text-muted)', fontSize: 11, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {KatIcon ? <KatIcon size={12} strokeWidth={2} aria-hidden /> : null}
+                              <span>{kat?.label}{r.broj_racuna ? ` · ${r.broj_racuna}` : ''}</span>
+                            </p>
                           </div>
                           <p style={{ color: '#ff6b6b', fontWeight: 700, fontSize: 13, margin: 0, textAlign: 'right' }}>{formatIznos(r.iznos)} RSD</p>
                           <button onClick={() => setBrisanje(r.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', textAlign: 'center' }}>×</button>

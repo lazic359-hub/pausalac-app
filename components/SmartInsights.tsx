@@ -2,6 +2,7 @@
 
 import { Alert } from "@/components/Alert";
 import { useMemo, useState, useEffect } from "react";
+import { BarChart3, Bell, Flame } from "lucide-react";
 import { getKpoLimitRsdFromStorage, getPocetniPrihodZaGodinu } from "@/lib/profile";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -93,7 +94,10 @@ function BurnRatePanel({ prihodiTekucaGodina, limit6m }: { prihodiTekucaGodina?:
       border: "1px solid var(--border)",
       borderRadius: 16, padding: 20, marginBottom: 12,
     }}>
-      <p style={labelStyle}>🔥 BURN-RATE ANALIZA</p>
+      <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+        <Flame size={14} strokeWidth={2} aria-hidden />
+        BURN-RATE ANALIZA
+      </p>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
         <div>
           <p style={{ fontSize: 28, fontWeight: 800, color: ACCENT, margin: "0 0 4px 0", textShadow: `0 0 20px ${ACCENT}40` }}>
@@ -171,7 +175,10 @@ function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
           : "1px solid var(--border)",
       borderRadius: 16, padding: 20, marginBottom: 12,
     }}>
-      <p style={labelStyle}>⏰ PORESKI PODSETNIK</p>
+      <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+        <Bell size={14} strokeWidth={2} aria-hidden />
+        PORESKI PODSETNIK
+      </p>
       {isLate && (
         <Alert variant="danger" style={{ marginBottom: 14, fontWeight: 600 }}>
           Plaćanje kasni. Kamata je 0,0322% dnevno.
@@ -258,7 +265,10 @@ function MiniChart({ prihodi, godina }: { prihodi: PrihodZaGrafikon[]; godina?: 
 
   return (
     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
-      <p style={labelStyle}>📊 PRIHODI {year}.</p>
+      <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
+        <BarChart3 size={14} strokeWidth={2} aria-hidden />
+        PRIHODI {year}.
+      </p>
       <div style={{ height: 140 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} barSize={14} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>

@@ -2,19 +2,27 @@
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { Suspense } from 'react'
+import {
+  BarChart3,
+  BookMarked,
+  Building2,
+  ClipboardList,
+  Receipt,
+  UserRound,
+} from 'lucide-react'
 import { FloatingAddPrihod } from '@/components/FloatingAddPrihod'
 import { FloatingNovaFaktura } from '@/components/FloatingNovaFaktura'
 import { NavDodajFabPlus } from '@/components/NavDodajFabPlus'
 import { InstallAppBanner } from '@/components/InstallAppBanner'
 
 const NAV_ITEMS = [
-  { key: 'dashboard', icon: '📊', label: 'Pregled', href: '/dashboard' },
-  { key: 'prihodi', icon: '📋', label: 'Prihodi', href: '/prihodi' },
+  { key: 'dashboard', Icon: BarChart3, label: 'Pregled', href: '/dashboard' },
+  { key: 'prihodi', Icon: ClipboardList, label: 'Prihodi', href: '/prihodi' },
   { key: 'dodaj', label: 'Dodaj', href: '/dashboard' },
-  { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/fakture' },
-  { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
-  { key: 'doo', icon: '🏢', label: 'DOO', href: '/doo' },
-  { key: 'settings', icon: '⚙️', label: 'Profil', href: '/profil' },
+  { key: 'faktura', Icon: Receipt, label: 'Faktura', href: '/fakture' },
+  { key: 'kpo', Icon: BookMarked, label: 'KPO', href: '/kpo' },
+  { key: 'doo', Icon: Building2, label: 'DOO', href: '/doo' },
+  { key: 'settings', Icon: UserRound, label: 'Profil', href: '/profil' },
 ] as const
 
 function BottomNavInner() {
@@ -59,6 +67,7 @@ function BottomNavInner() {
               </Link>
             )
           }
+          const Icon = 'Icon' in item ? item.Icon : null
           return (
             <Link
               key={item.key}
@@ -69,7 +78,9 @@ function BottomNavInner() {
                 fontWeight: isCurrent ? 700 : 400,
               }}
             >
-              <span className="bottom-nav-item-icon" aria-hidden>{item.icon}</span>
+              <span className="bottom-nav-item-icon" aria-hidden>
+                {Icon ? <Icon size={22} strokeWidth={2} /> : null}
+              </span>
               <span className="bottom-nav-item-label">{item.label}</span>
             </Link>
           )

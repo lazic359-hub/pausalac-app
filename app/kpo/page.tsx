@@ -8,7 +8,7 @@ import { ConfirmModal } from '@/components/ConfirmModal'
 import { downloadOfficialKpoPdf } from '@/lib/kpo-official-pdf'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { FileSpreadsheet, FileDown, Pencil, Trash2, Info } from 'lucide-react'
+import { AlertTriangle, BookMarked, ClipboardList, FileDown, FileSpreadsheet, Info, Pencil, Trash2 } from 'lucide-react'
 import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu, readProfilFromStorage } from '@/lib/profile'
 import { brojRacunaZaPrikaz } from '@/lib/kpo-prihod'
 import { KPO_TABLE_GRID_COLS } from '@/lib/kpo-table-grid'
@@ -404,7 +404,7 @@ export default function KpoPage() {
   if (authLoading) {
     return (
       <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 32 }}>📒</span>
+        <BookMarked size={32} strokeWidth={2} color="var(--accent)" aria-hidden />
       </div>
     )
   }
@@ -507,7 +507,9 @@ export default function KpoPage() {
       <header className="kpo-header">
         <div className="kpo-title-block">
           <button type="button" className="kpo-back-btn" onClick={() => window.history.back()} aria-label="Nazad">←</button>
-          <span className="kpo-title-emoji" aria-hidden>📒</span>
+          <span className="kpo-title-emoji" aria-hidden>
+            <BookMarked size={24} strokeWidth={2} />
+          </span>
           <div className="kpo-title-text">
             <span className="kpo-title-kicker">Evidencija</span>
             <span className="kpo-title-main">Arhiva i KPO</span>
@@ -641,7 +643,7 @@ export default function KpoPage() {
           <KpoTableSkeleton rows={4} />
         ) : prihodi.length === 0 ? (
           <ListEmptyState
-            icon="📒"
+            icon={<BookMarked size={48} strokeWidth={2} />}
             headline="KPO knjiga je prazna"
             subtext={'KPO se automatski popunjava kada označiš\nfakturu kao plaćenu. Nema ručnog unosa.'}
           >
@@ -670,7 +672,9 @@ export default function KpoPage() {
           </ListEmptyState>
         ) : filtrirane.length === 0 ? (
           <div className="kpo-empty">
-            <p style={{ fontSize: 40, margin: '0 0 12px 0', lineHeight: 1 }} aria-hidden>📋</p>
+            <p style={{ margin: '0 0 12px 0', lineHeight: 1, color: 'var(--accent)' }} aria-hidden>
+              <ClipboardList size={40} strokeWidth={2} />
+            </p>
             <p style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: '0 0 6px 0' }}>Nema prihoda za ovaj period</p>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0, marginBottom: 16, lineHeight: 1.45 }}>Promeni godinu ili kvartal, ili dodaj prihod iz Pregleda / Prihoda.</p>
           </div>
@@ -756,7 +760,9 @@ export default function KpoPage() {
             </div>
             {filtrirane.some(p => isOver70(p.klijent)) && (
               <div className="kpo-warning-banner">
-                <span style={{ fontSize: 20, lineHeight: 1 }} aria-hidden>⚠️</span>
+                <span style={{ lineHeight: 1, display: 'inline-flex', color: '#f59e0b' }} aria-hidden>
+                  <AlertTriangle size={20} strokeWidth={2} />
+                </span>
                 <p>
                   Narandžasta oznaka: klijent čini više od 70% prihoda u prikazu (test samostalnosti).
                 </p>

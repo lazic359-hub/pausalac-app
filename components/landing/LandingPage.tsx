@@ -2,6 +2,21 @@
 
 import Link from 'next/link'
 import { useState, type CSSProperties } from 'react'
+import {
+  BarChart3,
+  Bell,
+  BookMarked,
+  Briefcase,
+  Building2,
+  Calendar,
+  ChevronDown,
+  FileText,
+  Landmark,
+  Minus,
+  Plus,
+  Receipt,
+  TrendingUp,
+} from 'lucide-react'
 
 const ACCENT = '#00C896'
 const BG = '#0a0a0a'
@@ -63,9 +78,7 @@ export function LandingPage() {
             href="/"
             style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: '#fff' }}
           >
-            <span style={{ fontSize: 22 }} aria-hidden>
-              💼
-            </span>
+            <Briefcase size={22} strokeWidth={2} color={ACCENT} aria-hidden />
             <span style={{ fontWeight: 800, color: ACCENT, letterSpacing: 0.2, fontSize: 18 }}>Paušo</span>
           </Link>
           <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -195,23 +208,25 @@ export function LandingPage() {
                 gap: 20,
               }}
             >
-              {[
+              {([
                 {
-                  icon: '🗓',
+                  Icon: Calendar,
                   title: 'Zaboravljaš rokove za porez?',
                   text: 'Svaki 15. u mesecu, plus eko-taksa, plus PP OPO. Lako se izgubi.',
                 },
                 {
-                  icon: '📊',
+                  Icon: BarChart3,
                   title: 'Ne znaš koliko si zaradio ove godine?',
                   text: 'Limit od 6.000.000 RSD se puni brže nego što misliš.',
                 },
                 {
-                  icon: '📄',
+                  Icon: FileText,
                   title: 'KPO knjiga ti oduzima vreme?',
                   text: 'Svaka naplaćena faktura mora biti upisana ručno. Ili ne mora.',
                 },
-              ].map((item) => (
+              ] as const).map((item) => {
+                const CardIcon = item.Icon
+                return (
                 <div
                   key={item.title}
                   style={{
@@ -221,11 +236,14 @@ export function LandingPage() {
                     padding: 22,
                   }}
                 >
-                  <div style={{ fontSize: 28, marginBottom: 12 }}>{item.icon}</div>
+                  <div style={{ marginBottom: 12, color: ACCENT }}>
+                    <CardIcon size={28} strokeWidth={2} aria-hidden />
+                  </div>
                   <h3 style={{ fontSize: 17, fontWeight: 800, margin: '0 0 10px 0', color: '#fff' }}>{item.title}</h3>
                   <p style={{ margin: 0, color: '#888', fontSize: 14, lineHeight: 1.55 }}>{item.text}</p>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </section>
@@ -243,14 +261,16 @@ export function LandingPage() {
                 gap: 16,
               }}
             >
-              {[
-                { icon: '📈', t: 'Praćenje prihoda', d: 'Vidi koliko si zaradio i koliko ti ostaje do limita' },
-                { icon: '⏰', t: 'Rokovi i podsetnici', d: 'Push notifikacije pre svakog roka plaćanja' },
-                { icon: '🧾', t: 'Fakturisanje', d: 'Kreiraj i šalji fakture u EUR, USD ili RSD' },
-                { icon: '📒', t: 'KPO automatski', d: 'Faktura plaćena = KPO upis automatski' },
-                { icon: '🏦', t: 'Porez kalkulator', d: 'Tačno znaš šta duguješ svaki mesec' },
-                { icon: '🏢', t: 'DOO kalkulator', d: 'Saznaj kada ti se isplati preći u DOO' },
-              ].map((f) => (
+              {([
+                { Icon: TrendingUp, t: 'Praćenje prihoda', d: 'Vidi koliko si zaradio i koliko ti ostaje do limita' },
+                { Icon: Bell, t: 'Rokovi i podsetnici', d: 'Push notifikacije pre svakog roka plaćanja' },
+                { Icon: Receipt, t: 'Fakturisanje', d: 'Kreiraj i šalji fakture u EUR, USD ili RSD' },
+                { Icon: BookMarked, t: 'KPO automatski', d: 'Faktura plaćena = KPO upis automatski' },
+                { Icon: Landmark, t: 'Porez kalkulator', d: 'Tačno znaš šta duguješ svaki mesec' },
+                { Icon: Building2, t: 'DOO kalkulator', d: 'Saznaj kada ti se isplati preći u DOO' },
+              ] as const).map((f) => {
+                const FeatureIcon = f.Icon
+                return (
                 <div
                   key={f.t}
                   style={{
@@ -261,11 +281,14 @@ export function LandingPage() {
                     minHeight: 140,
                   }}
                 >
-                  <div style={{ fontSize: 26, marginBottom: 10 }}>{f.icon}</div>
+                  <div style={{ marginBottom: 10, color: ACCENT }}>
+                    <FeatureIcon size={26} strokeWidth={2} aria-hidden />
+                  </div>
                   <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: ACCENT }}>{f.t}</div>
                   <p style={{ margin: 0, color: '#888', fontSize: 13, lineHeight: 1.5 }}>{f.d}</p>
                 </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </section>
@@ -411,7 +434,9 @@ export function LandingPage() {
                       }}
                     >
                       <span>{item.q}</span>
-                      <span style={{ color: ACCENT, fontSize: 18, flexShrink: 0 }}>{open ? '−' : '+'}</span>
+                      <span style={{ color: ACCENT, flexShrink: 0, display: 'inline-flex' }} aria-hidden>
+                        {open ? <Minus size={18} strokeWidth={2} /> : <Plus size={18} strokeWidth={2} />}
+                      </span>
                     </button>
                     {open && (
                       <div
@@ -438,7 +463,7 @@ export function LandingPage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'space-between', marginBottom: 28 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <span aria-hidden>💼</span>
+                <Briefcase size={18} strokeWidth={2} color={ACCENT} aria-hidden />
                 <span style={{ fontWeight: 800, color: ACCENT }}>Paušo</span>
               </div>
               <p style={{ margin: 0, color: '#666', fontSize: 14 }}>Džepni knjigovođa za paušalce</p>

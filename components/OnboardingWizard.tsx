@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useMemo, useEffect } from 'react'
-import { getSupabaseBrowser } from '@/lib/supabase-browser'
+import { useRouter } from 'next/navigation'
+import { getSupabaseBrowser, signOutIntentional } from '@/lib/supabase-browser'
 import {
   readProfilFromStorage,
   markSessionOnboardingPersisted,
@@ -10,7 +11,7 @@ import {
   DEFAULT_GODISNJI_LIMIT_RSD,
 } from '@/lib/profile'
 import { loadOfflineProfile, saveOfflineProfile } from '@/lib/offline-data-cache'
-import { identityColumnsPayload } from '@/lib/profile-identity-columns'
+import { identityColumnsPayload, isProfilesMissingColumnError } from '@/lib/profile-identity-columns'
 
 const supabase = getSupabaseBrowser()
 
@@ -52,9 +53,11 @@ function inpStyle(focused: boolean): React.CSSProperties {
 }
 
 export function OnboardingWizard({ onDone }: { onDone: () => void }) {
+  const router = useRouter()
   const [step, setStep] = useState<Step>(1)
   const [focused, setFocused] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [switchAccountBusy, setSwitchAccountBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
   const [datumRegistracije, setDatumRegistracije] = useState('')
@@ -168,20 +171,23 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
       const pio = nemaResenje ? 0 : toInt(mesecniPio)
       const zdr = nemaResenje ? 0 : toInt(mesecniZdravstvo)
       const nez = nemaResenje ? 0 : toInt(mesecniNezaposlenost)
-      const { error } = await supabase.from('profiles').upsert(
-        {
-          id: uid,
-          company_data: merged,
-          onboarding_completed: true,
-          registration_date,
-          porez_na_prihod: porez,
-          pio_doprinos: pio,
-          zdravstveno: zdr,
-          nezaposleni: nez,
-          ...identityColumnsPayload(merged as Record<string, unknown>),
-        },
+      const baseUpsert = {
+        id: uid,
+        company_data: merged,
+        onboarding_completed: true,
+        registration_date,
+        porez_na_prihod: porez,
+        pio_doprinos: pio,
+        zdravstveno: zdr,
+        nezaposleni: nez,
+      }
+      let { error } = await supabase.from('profiles').upsert(
+        { ...baseUpsert, ...identityColumnsPayload(merged as Record<string, unknown>) },
         { onConflict: 'id' }
       )
+      if (error && isProfilesMissingColumnError(error.message)) {
+        ;({ error } = await supabase.from('profiles').upsert(baseUpsert, { onConflict: 'id' }))
+      }
       if (error) {
         setErr(humanizeSaveErrorMessage(error.message || 'Greška pri čuvanju profila.'))
         return
@@ -243,6 +249,20 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
     setStep(s => (s === 3 ? 2 : 1) as Step)
   }
 
+  const handleSwitchAccount = async () => {
+    if (saving || switchAccountBusy) return
+    setSwitchAccountBusy(true)
+    setErr(null)
+    const { error } = await signOutIntentional()
+    setSwitchAccountBusy(false)
+    if (error) {
+      setErr('Odjava nije uspela. Pokušaj ponovo ili osveži stranu.')
+      return
+    }
+    router.replace('/login')
+    router.refresh()
+  }
+
   return (
     <div
       role="dialog"
@@ -274,8 +294,16 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
           boxShadow: '0 24px 80px rgba(0,0,0,0.45)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 12,
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
             <p style={{ color: 'var(--accent)', fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', margin: '0 0 6px 0' }}>
               PRVI PUT
             </p>
@@ -283,8 +311,27 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
               Podesi osnovne podatke
             </h1>
           </div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>
-            {step}/3
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => void handleSwitchAccount()}
+              disabled={saving || switchAccountBusy}
+              title="Odjavi se i prijavi drugim nalogom (npr. drugi Google profil)"
+              style={{
+                padding: '8px 12px',
+                borderRadius: 10,
+                border: '1px solid var(--border)',
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: saving || switchAccountBusy ? 'wait' : 'pointer',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {switchAccountBusy ? 'Odjavljivanje…' : 'Odjavi se'}
+            </button>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center' }}>{step}/3</div>
           </div>
         </div>
 
@@ -508,6 +555,27 @@ export function OnboardingWizard({ onDone }: { onDone: () => void }) {
         {err && (
           <p style={{ color: 'var(--alert-danger-text)', fontSize: 12, margin: '14px 0 0 0' }}>{err}</p>
         )}
+
+        <div style={{ marginTop: 20, marginBottom: 4 }}>
+          <button
+            type="button"
+            onClick={() => void handleSwitchAccount()}
+            disabled={saving || switchAccountBusy}
+            style={{
+              width: '100%',
+              padding: '12px 14px',
+              borderRadius: 12,
+              border: '1px dashed var(--border)',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: saving || switchAccountBusy ? 'wait' : 'pointer',
+            }}
+          >
+            {switchAccountBusy ? 'Odjavljivanje…' : 'Pogrešan nalog? Odjavi se i izaberi drugi'}
+          </button>
+        </div>
 
         <div style={{ display: 'flex', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
           {step > 1 && (

@@ -12,6 +12,7 @@ import { isUnpaidInvoiceRow } from '@/lib/faktura-status'
 import { buildPrihodRowForPaidFaktura } from '@/lib/kpo-prihod'
 import { PrihodiListSkeleton } from '@/components/PageSkeletons'
 import { ListEmptyState } from '@/components/ListEmptyState'
+import { Banknote, Briefcase, Plus, Receipt, Wallet } from 'lucide-react'
 
 const supabase = getSupabaseBrowser()
 
@@ -166,7 +167,7 @@ export default function PrihodiPage() {
     setModalOpen(false)
     setModalLoading(false)
     fetchPrihodi()
-    setToast({ message: 'Prihod dodat ✅', tone: 'success' })
+    setToast({ message: 'Prihod dodat', tone: 'success' })
     setTimeout(() => setToast(null), 3000)
   }
 
@@ -202,7 +203,7 @@ export default function PrihodiPage() {
       setClientSelect('')
       setNewClient('')
       setShowForm(false)
-      setToast({ message: 'Prihod dodat ✅', tone: 'success' })
+      setToast({ message: 'Prihod dodat', tone: 'success' })
       setTimeout(() => setToast(null), 3000)
     } else {
       setToast({ message: 'Greška: ' + error.message, tone: 'danger' })
@@ -222,7 +223,7 @@ export default function PrihodiPage() {
   if (authLoading) {
     return (
       <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 32 }}>💼</span>
+        <Briefcase size={32} strokeWidth={2} color="var(--accent)" aria-hidden />
       </div>
     )
   }
@@ -391,7 +392,7 @@ export default function PrihodiPage() {
             onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
           >
-            <span style={{ fontSize: 20, lineHeight: 1 }}>🧾</span>
+            <Receipt size={20} strokeWidth={2} aria-hidden />
             <span>+ Iz fakture</span>
           </button>
           <button
@@ -407,7 +408,7 @@ export default function PrihodiPage() {
             onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
             onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
           >
-            <span style={{ fontSize: 20, lineHeight: 1 }}>💵</span>
+            <Banknote size={20} strokeWidth={2} aria-hidden />
             <span>+ Bez fakture</span>
           </button>
         </div>
@@ -436,7 +437,7 @@ export default function PrihodiPage() {
                 .map(k => (
                   <option key={k} value={k}>{k}</option>
                 ))}
-              <option value="__new__">➕ Novi klijent…</option>
+              <option value="__new__">Novi klijent…</option>
             </select>
             {clientSelect === '__new__' && (
               <input
@@ -595,7 +596,7 @@ export default function PrihodiPage() {
           </>
         ) : prihodi.length === 0 ? (
           <ListEmptyState
-            icon="💰"
+            icon={<Wallet size={48} strokeWidth={2} />}
             headline="Još nemaš evidentiranih prihoda"
             subtext={'Dodaj prvi prihod da počneš da pratiš\nsvoje zarade i limit od 6.000.000 RSD.'}
           >
@@ -619,7 +620,7 @@ export default function PrihodiPage() {
                 transition: 'transform 0.15s ease, box-shadow 0.2s ease',
               }}
             >
-              <span aria-hidden style={{ fontSize: 18, lineHeight: 1 }}>＋</span>
+              <Plus size={18} strokeWidth={2.25} aria-hidden />
               Dodaj prihod
             </button>
           </ListEmptyState>

@@ -21,6 +21,7 @@ import { readProfilFromStorage } from '@/lib/profile'
 import { formatOfflineTimestamp, loadOfflineFaktureList, saveOfflineFaktureList } from '@/lib/offline-data-cache'
 import { FaktureListSkeleton } from '@/components/PageSkeletons'
 import { ListEmptyState } from '@/components/ListEmptyState'
+import { Plus, Receipt } from 'lucide-react'
 
 const supabase = getSupabaseBrowser()
 
@@ -78,7 +79,7 @@ function NovaFakturaLink({ compact, label }: { compact?: boolean; label?: string
         transition: 'transform 0.15s ease, box-shadow 0.2s ease',
       }}
     >
-      <span aria-hidden style={{ fontSize: compact ? 16 : 18, lineHeight: 1 }}>＋</span>
+      <Plus size={compact ? 16 : 18} strokeWidth={2.25} aria-hidden />
       {text}
     </Link>
   )
@@ -249,7 +250,7 @@ export default function FakturePage() {
   if (authLoading) {
     return (
       <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: 32 }}>🧾</span>
+        <Receipt size={32} strokeWidth={2} color="var(--accent)" aria-hidden />
       </div>
     )
   }
@@ -295,7 +296,7 @@ export default function FakturePage() {
       <div style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <Link href="/dashboard" style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 20, cursor: 'pointer', textDecoration: 'none' }}>←</Link>
-          <span style={{ fontSize: 18 }}>🧾</span>
+          <Receipt size={18} strokeWidth={2} color="var(--accent)" aria-hidden />
           <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Fakture</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -314,7 +315,7 @@ export default function FakturePage() {
           <FaktureListSkeleton rows={4} />
         ) : fakture.length === 0 ? (
           <ListEmptyState
-            icon="🧾"
+            icon={<Receipt size={48} strokeWidth={2} />}
             headline="Još nemaš faktura"
             subtext={'Kreiraj prvu fakturu i ona će se automatski\nevidentirati u KPO knjizi kada bude plaćena.'}
           >

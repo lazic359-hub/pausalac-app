@@ -1,5 +1,17 @@
 /** Sinhronizacija KPO zaglavlja: kolone u `profiles` + `company_data` (camelCase u JSON-u). */
 
+/** Kolone koje dodaje migracija `20260406120000_profiles_kpo_identity_columns.sql`. */
+export const PROFILES_KPO_COLUMN_NAMES =
+  'pib, firma_naziv, sediste, sifra_delatnosti, obveznik, sifra_poreskog_obveznika' as const
+
+/** PostgREST kada tražena kolona ne postoji u keširanoj šemi (stara baza bez migracije). */
+export function isProfilesMissingColumnError(message: string | undefined | null): boolean {
+  if (!message) return false
+  const m = message.toLowerCase()
+  if (!m.includes('profiles')) return false
+  return m.includes('schema cache') || (m.includes('could not find') && m.includes('column'))
+}
+
 export type ProfileIdentityRow = {
   pib?: string | null
   firma_naziv?: string | null

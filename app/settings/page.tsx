@@ -8,9 +8,28 @@ import { BottomNav } from '@/components/BottomNav'
 import TestSamostalnosti from "@/components/TestSamostalnosti"
 import { getSupabaseBrowser, signOutIntentional } from '@/lib/supabase-browser'
 import { readProfilFromStorage, setProfileMemory } from '@/lib/profile'
-import { identityColumnsPayload, mergeCompanyWithIdentityColumns, type ProfileIdentityRow } from '@/lib/profile-identity-columns'
 import {
-  BookOpen, Building2, ChevronRight, LayoutDashboard, FileSpreadsheet, Wallet, FileText, LogOut, Landmark,
+  identityColumnsPayload,
+  isProfilesMissingColumnError,
+  mergeCompanyWithIdentityColumns,
+  PROFILES_KPO_COLUMN_NAMES,
+  type ProfileIdentityRow,
+} from '@/lib/profile-identity-columns'
+import {
+  AlertTriangle,
+  Bell,
+  BookOpen,
+  Building2,
+  Check,
+  ChevronRight,
+  ClipboardList,
+  FileSpreadsheet,
+  FileText,
+  Landmark,
+  LayoutDashboard,
+  Lightbulb,
+  LogOut,
+  Wallet,
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -77,7 +96,12 @@ function Input({ value, onChange, placeholder, type = 'text', hasError = false, 
 }
 
 function Greska({ tekst }: { tekst: string }) {
-  return <p style={{ color: 'var(--alert-danger-text)', fontSize: 11, margin: '4px 0 8px 0' }}>⚠️ {tekst}</p>
+  return (
+    <p style={{ color: 'var(--alert-danger-text)', fontSize: 11, margin: '4px 0 8px 0', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+      <AlertTriangle size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }} aria-hidden />
+      <span>{tekst}</span>
+    </p>
+  )
 }
 
 function formatRsd(n: number) {
@@ -188,17 +212,33 @@ export default function SettingsPage() {
       return
     }
 
-    const { data } = await supabase
+    const selectWithKpo = `company_data, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, ${PROFILES_KPO_COLUMN_NAMES}`
+    const selectLegacy = 'company_data, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni'
+    let { data, error: loadErr } = await supabase
       .from('profiles')
-      .select(
-        'company_data, porez_na_prihod, pio_doprinos, zdravstveno, nezaposleni, pib, firma_naziv, sediste, sifra_delatnosti, obveznik, sifra_poreskog_obveznika'
-      )
+      .select(selectWithKpo)
       .eq('id', user.id)
       .maybeSingle()
+    if (loadErr && isProfilesMissingColumnError(loadErr.message)) {
+      ;({ data, error: loadErr } = await supabase
+        .from('profiles')
+        .select(selectLegacy)
+        .eq('id', user.id)
+        .maybeSingle())
+    }
 
-    const fromDbRaw = (data?.company_data as Partial<Profil> | null) ?? {}
-    const fromDb = data
-      ? mergeCompanyWithIdentityColumns(fromDbRaw as Record<string, unknown>, data as ProfileIdentityRow)
+    type SettingsProfileRow = ProfileIdentityRow & {
+      company_data?: unknown
+      porez_na_prihod?: number | null
+      pio_doprinos?: number | null
+      zdravstveno?: number | null
+      nezaposleni?: number | null
+    }
+    const row = (data as SettingsProfileRow | null) ?? null
+
+    const fromDbRaw = (row?.company_data as Partial<Profil> | null) ?? {}
+    const fromDb = row
+      ? mergeCompanyWithIdentityColumns(fromDbRaw as Record<string, unknown>, row)
       : (fromDbRaw as Record<string, unknown>)
     const fromMem = readProfilFromStorage() ?? {}
     const parsed: Profil = {
@@ -207,12 +247,12 @@ export default function SettingsPage() {
       ...fromMem,
     } as Profil
 
-    if (data) {
-      parsed.mesecniPorez = data.porez_na_prihod != null ? String(data.porez_na_prihod) : parsed.mesecniPorez
-      parsed.mesecniPio = data.pio_doprinos != null ? String(data.pio_doprinos) : parsed.mesecniPio
-      parsed.mesecniZdravstvo = data.zdravstveno != null ? String(data.zdravstveno) : parsed.mesecniZdravstvo
+    if (row) {
+      parsed.mesecniPorez = row.porez_na_prihod != null ? String(row.porez_na_prihod) : parsed.mesecniPorez
+      parsed.mesecniPio = row.pio_doprinos != null ? String(row.pio_doprinos) : parsed.mesecniPio
+      parsed.mesecniZdravstvo = row.zdravstveno != null ? String(row.zdravstveno) : parsed.mesecniZdravstvo
       parsed.mesecniNezaposlenost =
-        data.nezaposleni != null ? String(data.nezaposleni) : parsed.mesecniNezaposlenost
+        row.nezaposleni != null ? String(row.nezaposleni) : parsed.mesecniNezaposlenost
     }
 
     setProfil(parsed)
@@ -317,18 +357,21 @@ export default function SettingsPage() {
 
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
-      const { error } = await supabase.from('profiles').upsert(
-        {
-          id: user.id,
-          company_data: profilZaCuvanje as unknown as Record<string, unknown>,
-          porez_na_prihod: parseInt(profilZaCuvanje.mesecniPorez) || 0,
-          pio_doprinos: parseInt(profilZaCuvanje.mesecniPio) || 0,
-          zdravstveno: parseInt(profilZaCuvanje.mesecniZdravstvo) || 0,
-          nezaposleni: parseInt(profilZaCuvanje.mesecniNezaposlenost) || 0,
-          ...identityColumnsPayload(profilZaCuvanje as unknown as Record<string, unknown>),
-        },
+      const baseUpsert = {
+        id: user.id,
+        company_data: profilZaCuvanje as unknown as Record<string, unknown>,
+        porez_na_prihod: parseInt(profilZaCuvanje.mesecniPorez) || 0,
+        pio_doprinos: parseInt(profilZaCuvanje.mesecniPio) || 0,
+        zdravstveno: parseInt(profilZaCuvanje.mesecniZdravstvo) || 0,
+        nezaposleni: parseInt(profilZaCuvanje.mesecniNezaposlenost) || 0,
+      }
+      let { error } = await supabase.from('profiles').upsert(
+        { ...baseUpsert, ...identityColumnsPayload(profilZaCuvanje as unknown as Record<string, unknown>) },
         { onConflict: 'id' }
       )
+      if (error && isProfilesMissingColumnError(error.message)) {
+        ;({ error } = await supabase.from('profiles').upsert(baseUpsert, { onConflict: 'id' }))
+      }
       if (error) {
         console.warn('[SettingsPage] profiles.upsert:', error.message)
         showToast(humanizeSaveErrorMessage(error.message), 'error')
@@ -478,7 +521,10 @@ export default function SettingsPage() {
         {/* Podaci o firmi */}
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>🏢 PODACI O FIRMI</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Building2 size={14} strokeWidth={2} aria-hidden />
+            PODACI O FIRMI
+          </p>
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>NAZIV FIRME</p>
           <Input value={profil.nazivFirme} onChange={set('nazivFirme')} placeholder="npr. Moje Preduzeće PR" hasError={ima('nazivFirme')} style={{ marginBottom: 4 }} disabled={!editMode} />
@@ -538,7 +584,10 @@ export default function SettingsPage() {
         {/* Poreski podaci */}
         <div id="poresko-podaci" style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#f59e0b', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>📋 PORESKI PODACI (IZ REŠENJA)</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <ClipboardList size={14} strokeWidth={2} aria-hidden />
+            PORESKI PODACI (IZ REŠENJA)
+          </p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.5 }}>
             Fiksne mesečne akontacije i doprinosi — prepiši iz rešenja o utvrđivanju obaveze (Poresko upravstvo). Ažuriraj kad stigne novo rešenje.
           </p>
@@ -618,7 +667,10 @@ export default function SettingsPage() {
         {/* Bankovni podaci */}
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#3b82f6', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0' }}>🏦 BANKOVNI PODACI</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Landmark size={14} strokeWidth={2} aria-hidden />
+            BANKOVNI PODACI
+          </p>
 
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>BROJ POSLOVNOG RAČUNA (DOMAĆI)</p>
           <Input value={profil.brojRacuna} onChange={set('brojRacuna')} placeholder="205-123456789012-53" hasError={ima('brojRacuna')} style={{ marginBottom: 4 }} disabled={!editMode} />
@@ -628,7 +680,10 @@ export default function SettingsPage() {
         {/* Devizni podaci */}
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#6677ff', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0' }}>🌍 DEVIZNO PLAĆANJE (OPCIONO)</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Wallet size={14} strokeWidth={2} aria-hidden />
+            DEVIZNO PLAĆANJE (OPCIONO)
+          </p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 20px 0' }}>
             Prikazuje se na PDF fakturama u EUR i USD
           </p>
@@ -640,8 +695,9 @@ export default function SettingsPage() {
           <Input value={profil.swift || ''} onChange={set('swift')} placeholder="npr. AABASRB" disabled={!editMode} />
 
           <div style={{ marginTop: 12, background: 'var(--accent-dim)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
-            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, lineHeight: 1.6 }}>
-              💡 IBAN i SWIFT dobijaš od svoje banke. Potrebni su stranim klijentima da bi izvršili devizno plaćanje.
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, lineHeight: 1.6, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+              <Lightbulb size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden />
+              <span>IBAN i SWIFT dobijaš od svoje banke. Potrebni su stranim klijentima da bi izvršili devizno plaćanje.</span>
             </p>
           </div>
         </div>
@@ -649,7 +705,10 @@ export default function SettingsPage() {
         {/* Notifikacije */}
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#a855f7', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0' }}>🔔 NOTIFIKACIJE</p>
+          <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Bell size={14} strokeWidth={2} aria-hidden />
+            NOTIFIKACIJE
+          </p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 18px 0', lineHeight: 1.5 }}>
             Podsetnici za mesečne obaveze (porez i doprinosi) pre roka plaćanja — u skladu sa poreskim kalendarom u aplikaciji.
           </p>
@@ -752,7 +811,14 @@ export default function SettingsPage() {
           </button>
           <button onClick={openSaveConfirm}
             style={{ flex: 1, minWidth: 140, maxWidth: 320, background: sacuvano ? '#00b884' : 'var(--accent)', color: '#000', fontWeight: 700, fontSize: 15, padding: '16px', borderRadius: 12, border: 'none', cursor: 'pointer', boxShadow: '0 0 20px #00C89640' }}>
-            {sacuvano ? '✓ Sačuvano!' : 'Sačuvaj izmene'}
+            {sacuvano ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                <Check size={18} strokeWidth={2.5} aria-hidden />
+                Sačuvano!
+              </span>
+            ) : (
+              'Sačuvaj izmene'
+            )}
           </button>
         </div>
       )}

@@ -16,7 +16,18 @@ import { IncomeDetailsModal } from '@/components/IncomeDetailsModal'
 import { ConfirmModal } from '@/components/ConfirmModal'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { FileDown, Info } from 'lucide-react'
+import {
+  Banknote,
+  BarChart3,
+  BookMarked,
+  Briefcase,
+  ClipboardList,
+  FileDown,
+  Info,
+  Receipt,
+  TrendingUp,
+  UserRound,
+} from 'lucide-react'
 import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu } from '@/lib/profile'
 import { formatOfflineTimestamp, loadOfflineDashboard, saveOfflineDashboard } from '@/lib/offline-data-cache'
 import { authDisplayName } from '@/lib/auth-safe-next'
@@ -110,7 +121,7 @@ function generatePDF(fakture: Faktura[], godina: string, email: string, stats: {
 <body>
 <div class="header">
   <div>
-    <div class="logo">💼 Paušo</div>
+    <div class="logo">Paušo</div>
     <div style="color:#888; margin-top:4px; font-size:12px">Izveštaj prihoda — ${godina}. godina</div>
   </div>
   <div class="meta">
@@ -548,7 +559,7 @@ function DashboardContent() {
 
   if (authLoading) return (
     <div style={{ background: 'var(--bg-primary)', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <span style={{ color: 'var(--accent)', fontSize: 32 }}>💼</span>
+      <Briefcase size={32} strokeWidth={2} color="var(--accent)" aria-hidden />
     </div>
   )
 
@@ -710,7 +721,7 @@ function DashboardContent() {
       {/* Header */}
       <div className="app-header" style={{ borderBottom: '1px solid var(--border)', padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 22 }}>💼</span>
+          <Briefcase size={22} strokeWidth={2} color="var(--accent)" aria-hidden />
           <span style={{ fontWeight: 700, fontSize: 18, color: 'var(--accent)' }}>Paušo</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -881,11 +892,11 @@ function DashboardContent() {
             />
             <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', maxWidth: 360 }}>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 20 }}>
-                <span style={{ fontSize: 52, lineHeight: 1 }} aria-hidden>💼</span>
+                <Briefcase size={52} strokeWidth={2} color="var(--accent)" aria-hidden />
                 <span style={{ fontWeight: 800, fontSize: 20, color: 'var(--accent)', marginTop: 10, letterSpacing: 0.2 }}>Paušo</span>
               </div>
               <h1 style={{ color: 'var(--text-primary)', fontSize: 22, fontWeight: 700, margin: '0 0 14px 0', lineHeight: 1.35 }}>
-                Dobrodošao/la u Paušo! 👋
+                Dobrodošao/la u Paušo!
               </h1>
               <p style={{ color: 'var(--text-muted)', fontSize: 15, margin: '0 0 28px 0', lineHeight: 1.55 }}>
                 Tvoj džepni knjigovođa je spreman. Dodaj prvi prihod da počneš da pratiš svoje finansije.
@@ -1162,7 +1173,10 @@ function DashboardContent() {
               style={{ width: '100%', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px', color: 'var(--text-primary)', fontSize: 14, marginBottom: 4, boxSizing: 'border-box', outline: 'none' }}
             />
             {kursPrikaz && (
-              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 4px' }}>📈 NBS kurs: {kursPrikaz}</p>
+              <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 8px 4px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <TrendingUp size={14} strokeWidth={2} aria-hidden style={{ flexShrink: 0 }} />
+                <span>NBS kurs: {kursPrikaz}</span>
+              </p>
             )}
             {iznosRsdPrikaz && forma.valuta !== 'RSD' && (
               <div style={{ background: 'var(--accent-dim)', border: '1px solid var(--accent)', borderRadius: 10, padding: '10px 16px', marginBottom: 12 }}>
@@ -1195,7 +1209,7 @@ function DashboardContent() {
                 onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
               >
-                <span style={{ fontSize: 20, lineHeight: 1 }}>🧾</span>
+                <Receipt size={20} strokeWidth={2} aria-hidden />
                 <span>+ Iz fakture</span>
               </button>
               <button
@@ -1211,7 +1225,7 @@ function DashboardContent() {
                 onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)' }}
                 onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
               >
-                <span style={{ fontSize: 20, lineHeight: 1 }}>💵</span>
+                <Banknote size={20} strokeWidth={2} aria-hidden />
                 <span>+ Bez fakture</span>
               </button>
             </div>
@@ -1251,7 +1265,9 @@ function DashboardContent() {
             </div>
             {fakture.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
-                <p style={{ fontSize: 40 }}>📋</p>
+                <p style={{ margin: '0 0 8px 0', display: 'flex', justifyContent: 'center', color: 'var(--accent)' }}>
+                  <ClipboardList size={40} strokeWidth={2} aria-hidden />
+                </p>
                 <p>Nema prihoda za {godina}. godinu</p>
               </div>
             ) : (
@@ -1312,15 +1328,15 @@ function DashboardContent() {
 
       {/* Bottom nav — fiksirana na dnu na svim uređajima */}
       <div className="bottom-nav-fixed" style={{ background: 'var(--bg-primary)', borderTop: '1px solid var(--border)' }}>
-        {[
-          { key: 'dashboard', icon: '📊', label: 'Pregled' },
-          { key: 'fakture', icon: '📋', label: 'Prihodi' },
+        {([
+          { key: 'dashboard', Icon: BarChart3, label: 'Pregled' },
+          { key: 'fakture', Icon: ClipboardList, label: 'Prihodi' },
           { key: 'dodaj', label: 'Dodaj' },
-          { key: 'faktura', icon: '🧾', label: 'Faktura', href: '/fakture' },
-          { key: 'kpo', icon: '📒', label: 'KPO', href: '/kpo' },
-          { key: 'settings', icon: '⚙️', label: 'Profil', href: '/profil' },
-        ].map((item) => {
-          const href = (item as { href?: string }).href
+          { key: 'faktura', Icon: Receipt, label: 'Faktura', href: '/fakture' },
+          { key: 'kpo', Icon: BookMarked, label: 'KPO', href: '/kpo' },
+          { key: 'settings', Icon: UserRound, label: 'Profil', href: '/profil' },
+        ] as const).map((item) => {
+          const href = 'href' in item ? item.href : undefined
           if (item.key === 'dodaj') {
             const isDodaj = tab === 'dodaj'
             return (
@@ -1340,6 +1356,7 @@ function DashboardContent() {
               </button>
             )
           }
+          const Icon = 'Icon' in item ? item.Icon : null
           return (
             <button
               key={item.key}
@@ -1352,7 +1369,7 @@ function DashboardContent() {
               }}
             >
               <span className="bottom-nav-item-icon nav-item-icon" aria-hidden>
-                {item.icon}
+                {Icon ? <Icon size={22} strokeWidth={2} /> : null}
               </span>
               <span className="bottom-nav-item-label nav-item-label">{item.label}</span>
             </button>
