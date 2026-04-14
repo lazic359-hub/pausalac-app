@@ -31,6 +31,7 @@ import {
 import { getKpoLimitRsdFromStorage, getUkupnoPrihodZaGodinu } from '@/lib/profile'
 import { formatOfflineTimestamp, loadOfflineDashboard, saveOfflineDashboard } from '@/lib/offline-data-cache'
 import { authDisplayName } from '@/lib/auth-safe-next'
+import { bottomNavIdleColor } from '@/lib/bottom-nav-colors'
 import { isUnpaidInvoiceRow } from '@/lib/faktura-status'
 
 const supabase = getSupabaseBrowser()
@@ -1364,7 +1365,7 @@ function DashboardContent() {
               onClick={() => (href ? (window.location.href = href) : setTab(item.key as 'dashboard' | 'fakture'))}
               className="bottom-nav-item"
               style={{
-                color: tab === item.key ? 'var(--accent)' : 'var(--text-muted)',
+                color: tab === item.key ? 'var(--accent)' : bottomNavIdleColor(item.key),
                 fontWeight: tab === item.key ? 700 : 400,
               }}
             >

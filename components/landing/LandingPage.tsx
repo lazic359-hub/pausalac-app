@@ -78,7 +78,7 @@ export function LandingPage() {
             href="/"
             style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', color: '#fff' }}
           >
-            <Briefcase size={22} strokeWidth={2} color={ACCENT} aria-hidden />
+            <Briefcase size={22} strokeWidth={2} color="var(--icon-accent)" aria-hidden />
             <span style={{ fontWeight: 800, color: ACCENT, letterSpacing: 0.2, fontSize: 18 }}>Paušo</span>
           </Link>
           <nav style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
@@ -213,16 +213,19 @@ export function LandingPage() {
                   Icon: Calendar,
                   title: 'Zaboravljaš rokove za porez?',
                   text: 'Svaki 15. u mesecu, plus eko-taksa, plus PP OPO. Lako se izgubi.',
+                  hue: 'var(--icon-amber)',
                 },
                 {
                   Icon: BarChart3,
                   title: 'Ne znaš koliko si zaradio ove godine?',
                   text: 'Limit od 6.000.000 RSD se puni brže nego što misliš.',
+                  hue: 'var(--icon-cyan)',
                 },
                 {
                   Icon: FileText,
                   title: 'KPO knjiga ti oduzima vreme?',
                   text: 'Svaka naplaćena faktura mora biti upisana ručno. Ili ne mora.',
+                  hue: 'var(--icon-violet)',
                 },
               ] as const).map((item) => {
                 const CardIcon = item.Icon
@@ -236,7 +239,7 @@ export function LandingPage() {
                     padding: 22,
                   }}
                 >
-                  <div style={{ marginBottom: 12, color: ACCENT }}>
+                  <div style={{ marginBottom: 12, color: item.hue }}>
                     <CardIcon size={28} strokeWidth={2} aria-hidden />
                   </div>
                   <h3 style={{ fontSize: 17, fontWeight: 800, margin: '0 0 10px 0', color: '#fff' }}>{item.title}</h3>
@@ -262,12 +265,12 @@ export function LandingPage() {
               }}
             >
               {([
-                { Icon: TrendingUp, t: 'Praćenje prihoda', d: 'Vidi koliko si zaradio i koliko ti ostaje do limita' },
-                { Icon: Bell, t: 'Rokovi i podsetnici', d: 'Push notifikacije pre svakog roka plaćanja' },
-                { Icon: Receipt, t: 'Fakturisanje', d: 'Kreiraj i šalji fakture u EUR, USD ili RSD' },
-                { Icon: BookMarked, t: 'KPO automatski', d: 'Faktura plaćena = KPO upis automatski' },
-                { Icon: Landmark, t: 'Porez kalkulator', d: 'Tačno znaš šta duguješ svaki mesec' },
-                { Icon: Building2, t: 'DOO kalkulator', d: 'Saznaj kada ti se isplati preći u DOO' },
+                { Icon: TrendingUp, t: 'Praćenje prihoda', d: 'Vidi koliko si zaradio i koliko ti ostaje do limita', hue: 'var(--icon-accent)' },
+                { Icon: Bell, t: 'Rokovi i podsetnici', d: 'Push notifikacije pre svakog roka plaćanja', hue: 'var(--icon-amber)' },
+                { Icon: Receipt, t: 'Fakturisanje', d: 'Kreiraj i šalji fakture u EUR, USD ili RSD', hue: 'var(--icon-rose)' },
+                { Icon: BookMarked, t: 'KPO automatski', d: 'Faktura plaćena = KPO upis automatski', hue: 'var(--icon-violet)' },
+                { Icon: Landmark, t: 'Porez kalkulator', d: 'Tačno znaš šta duguješ svaki mesec', hue: 'var(--icon-blue)' },
+                { Icon: Building2, t: 'DOO kalkulator', d: 'Saznaj kada ti se isplati preći u DOO', hue: 'var(--icon-cyan)' },
               ] as const).map((f) => {
                 const FeatureIcon = f.Icon
                 return (
@@ -281,10 +284,10 @@ export function LandingPage() {
                     minHeight: 140,
                   }}
                 >
-                  <div style={{ marginBottom: 10, color: ACCENT }}>
+                  <div style={{ marginBottom: 10, color: f.hue }}>
                     <FeatureIcon size={26} strokeWidth={2} aria-hidden />
                   </div>
-                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: ACCENT }}>{f.t}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 8, color: f.hue }}>{f.t}</div>
                   <p style={{ margin: 0, color: '#888', fontSize: 13, lineHeight: 1.5 }}>{f.d}</p>
                 </div>
                 )
@@ -463,7 +466,7 @@ export function LandingPage() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, justifyContent: 'space-between', marginBottom: 28 }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                <Briefcase size={18} strokeWidth={2} color={ACCENT} aria-hidden />
+                <Briefcase size={18} strokeWidth={2} color="var(--icon-accent)" aria-hidden />
                 <span style={{ fontWeight: 800, color: ACCENT }}>Paušo</span>
               </div>
               <p style={{ margin: 0, color: '#666', fontSize: 14 }}>Džepni knjigovođa za paušalce</p>

@@ -27,6 +27,24 @@ html, body {
   --accent-dim:    rgba(0, 200, 150, 0.1);
   --shadow:        0 4px 24px rgba(0,0,0,0.4);
 
+  /* Ikone: suptilna varijacija boja (dark) — i dalje u skladu sa brendom */
+  --icon-accent:   var(--accent);
+  --icon-cyan:     #22d3ee;
+  --icon-violet:   #a78bfa;
+  --icon-amber:    #fbbf24;
+  --icon-rose:     #fb7185;
+  --icon-blue:     #60a5fa;
+  --icon-emerald:  #34d399;
+
+  /* Bottom nav: neaktivne stavke — blaga nijansa (ikonica + labela) */
+  --bottom-nav-idle-pregled: color-mix(in srgb, var(--text-muted) 82%, var(--icon-cyan) 18%);
+  --bottom-nav-idle-prihodi: color-mix(in srgb, var(--text-muted) 82%, var(--icon-blue) 18%);
+  --bottom-nav-idle-faktura: color-mix(in srgb, var(--text-muted) 82%, var(--icon-rose) 18%);
+  --bottom-nav-idle-kpo: color-mix(in srgb, var(--text-muted) 82%, var(--icon-violet) 18%);
+  --bottom-nav-idle-doo: color-mix(in srgb, var(--text-muted) 82%, var(--icon-emerald) 18%);
+  --bottom-nav-idle-profil: color-mix(in srgb, var(--text-muted) 82%, var(--icon-amber) 18%);
+  --bottom-nav-idle-dodaj-label: color-mix(in srgb, var(--text-muted) 72%, var(--accent) 28%);
+
   /* Loading skeletons (tamna pozadina ~#0a0a0a, blokovi nešto svetliji) */
   --skeleton-base:      #1a1a1a;
   --skeleton-highlight: #2a2a2a;
@@ -58,6 +76,22 @@ html, body {
   --accent:        #00c98a;
   --accent-dim:    rgba(0, 201, 138, 0.12);
   --shadow:        0 4px 24px rgba(0,0,0,0.08);
+
+  --icon-accent:   var(--accent);
+  --icon-cyan:     #0e7490;
+  --icon-violet:   #7c3aed;
+  --icon-amber:    #d97706;
+  --icon-rose:     #e11d48;
+  --icon-blue:     #2563eb;
+  --icon-emerald:  #059669;
+
+  --bottom-nav-idle-pregled: color-mix(in srgb, var(--text-muted) 85%, var(--icon-cyan) 15%);
+  --bottom-nav-idle-prihodi: color-mix(in srgb, var(--text-muted) 85%, var(--icon-blue) 15%);
+  --bottom-nav-idle-faktura: color-mix(in srgb, var(--text-muted) 85%, var(--icon-rose) 15%);
+  --bottom-nav-idle-kpo: color-mix(in srgb, var(--text-muted) 85%, var(--icon-violet) 15%);
+  --bottom-nav-idle-doo: color-mix(in srgb, var(--text-muted) 85%, var(--icon-emerald) 15%);
+  --bottom-nav-idle-profil: color-mix(in srgb, var(--text-muted) 85%, var(--icon-amber) 15%);
+  --bottom-nav-idle-dodaj-label: color-mix(in srgb, var(--text-muted) 78%, var(--accent) 22%);
 
   --skeleton-base:      #e5e7eb;
   --skeleton-highlight: #f3f4f6;
@@ -425,7 +459,7 @@ body.install-app-banner-visible {
 }
 
 .bottom-nav-dodaj-label {
-  color: var(--text-muted);
+  color: var(--bottom-nav-idle-dodaj-label);
   font-weight: 600;
   font-size: 11px;
   letter-spacing: 0.02em;

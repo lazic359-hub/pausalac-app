@@ -522,7 +522,7 @@ export default function SettingsPage() {
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: 'var(--accent)', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Building2 size={14} strokeWidth={2} aria-hidden />
+            <Building2 size={14} strokeWidth={2} color="var(--icon-violet)" aria-hidden />
             PODACI O FIRMI
           </p>
 
@@ -585,7 +585,7 @@ export default function SettingsPage() {
         <div id="poresko-podaci" style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#f59e0b', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <ClipboardList size={14} strokeWidth={2} aria-hidden />
+            <ClipboardList size={14} strokeWidth={2} color="var(--icon-blue)" aria-hidden />
             PORESKI PODACI (IZ REŠENJA)
           </p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 16px 0', lineHeight: 1.5 }}>
@@ -668,7 +668,7 @@ export default function SettingsPage() {
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#3b82f6', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Landmark size={14} strokeWidth={2} aria-hidden />
+            <Landmark size={14} strokeWidth={2} color="var(--icon-cyan)" aria-hidden />
             BANKOVNI PODACI
           </p>
 
@@ -681,7 +681,7 @@ export default function SettingsPage() {
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#6677ff', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Wallet size={14} strokeWidth={2} aria-hidden />
+            <Wallet size={14} strokeWidth={2} color="var(--icon-rose)" aria-hidden />
             DEVIZNO PLAĆANJE (OPCIONO)
           </p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 20px 0' }}>
@@ -696,7 +696,7 @@ export default function SettingsPage() {
 
           <div style={{ marginTop: 12, background: 'var(--accent-dim)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px' }}>
             <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: 0, lineHeight: 1.6, display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-              <Lightbulb size={14} strokeWidth={2} style={{ flexShrink: 0, marginTop: 2 }} aria-hidden />
+              <Lightbulb size={14} strokeWidth={2} color="var(--icon-amber)" style={{ flexShrink: 0, marginTop: 2 }} aria-hidden />
               <span>IBAN i SWIFT dobijaš od svoje banke. Potrebni su stranim klijentima da bi izvršili devizno plaćanje.</span>
             </p>
           </div>
@@ -706,7 +706,7 @@ export default function SettingsPage() {
         <div style={kartica}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, background: '#a855f7', borderRadius: '50%', filter: 'blur(60px)', opacity: 0.07 }} />
           <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '0 0 6px 0', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Bell size={14} strokeWidth={2} aria-hidden />
+            <Bell size={14} strokeWidth={2} color="var(--icon-amber)" aria-hidden />
             NOTIFIKACIJE
           </p>
           <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '0 0 18px 0', lineHeight: 1.5 }}>

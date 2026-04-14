@@ -95,7 +95,7 @@ function BurnRatePanel({ prihodiTekucaGodina, limit6m }: { prihodiTekucaGodina?:
       borderRadius: 16, padding: 20, marginBottom: 12,
     }}>
       <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
-        <Flame size={14} strokeWidth={2} aria-hidden />
+        <Flame size={14} strokeWidth={2} color="var(--icon-amber)" aria-hidden />
         BURN-RATE ANALIZA
       </p>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 12 }}>
@@ -176,7 +176,7 @@ function TaxCountdown({ onOpenQRModal }: { onOpenQRModal?: () => void }) {
       borderRadius: 16, padding: 20, marginBottom: 12,
     }}>
       <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
-        <Bell size={14} strokeWidth={2} aria-hidden />
+        <Bell size={14} strokeWidth={2} color="var(--icon-violet)" aria-hidden />
         PORESKI PODSETNIK
       </p>
       {isLate && (
@@ -266,7 +266,7 @@ function MiniChart({ prihodi, godina }: { prihodi: PrihodZaGrafikon[]; godina?: 
   return (
     <div style={{ background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 16, padding: 20, marginBottom: 12 }}>
       <p style={{ ...labelStyle, display: "flex", alignItems: "center", gap: 8 }}>
-        <BarChart3 size={14} strokeWidth={2} aria-hidden />
+        <BarChart3 size={14} strokeWidth={2} color="var(--icon-cyan)" aria-hidden />
         PRIHODI {year}.
       </p>
       <div style={{ height: 140 }}>

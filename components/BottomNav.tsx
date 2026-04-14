@@ -14,6 +14,7 @@ import { FloatingAddPrihod } from '@/components/FloatingAddPrihod'
 import { FloatingNovaFaktura } from '@/components/FloatingNovaFaktura'
 import { NavDodajFabPlus } from '@/components/NavDodajFabPlus'
 import { InstallAppBanner } from '@/components/InstallAppBanner'
+import { bottomNavIdleColor } from '@/lib/bottom-nav-colors'
 
 const NAV_ITEMS = [
   { key: 'dashboard', Icon: BarChart3, label: 'Pregled', href: '/dashboard' },
@@ -74,7 +75,7 @@ function BottomNavInner() {
               href={item.href}
               className="bottom-nav-item"
               style={{
-                color: isCurrent ? 'var(--accent)' : 'var(--text-muted)',
+                color: isCurrent ? 'var(--accent)' : bottomNavIdleColor(item.key),
                 fontWeight: isCurrent ? 700 : 400,
               }}
             >
